@@ -1,7 +1,7 @@
 'use client'
 
-import { FileText, LogOut, LayoutGrid } from 'lucide-react'
-import { usePathname } from 'next/navigation'
+import { LogOut, LayoutGrid, Building2, Cpu, ShoppingBag } from 'lucide-react'
+import { usePathname, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { signOut } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
@@ -9,15 +9,36 @@ import Image from 'next/image'
 
 export default function Sidebar() {
   const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const currentCategory = searchParams.get('category')
 
-  // 精简导航 - 只保留首页
   const navigation = [
-    { 
-      name: '首页', 
-      href: '/dashboard', 
-      icon: LayoutGrid, 
-      description: '财报分析与管理',
-      isActive: (path: string) => path === '/dashboard' || path.startsWith('/dashboard/reports')
+    {
+      name: 'AI应用公司',
+      href: '/dashboard?category=AI_APPLICATION',
+      icon: Building2,
+      description: 'Microsoft, Google, Meta 等',
+      category: 'AI_APPLICATION',
+      isActive: (path: string, cat: string | null) =>
+        path === '/dashboard' && (cat === 'AI_APPLICATION' || !cat),
+    },
+    {
+      name: 'AI供应链公司',
+      href: '/dashboard?category=AI_SUPPLY_CHAIN',
+      icon: Cpu,
+      description: 'Nvidia, TSMC, ASML 等',
+      category: 'AI_SUPPLY_CHAIN',
+      isActive: (path: string, cat: string | null) =>
+        path === '/dashboard' && cat === 'AI_SUPPLY_CHAIN',
+    },
+    {
+      name: '消费品公司',
+      href: '/dashboard?category=CONSUMER_GOODS',
+      icon: ShoppingBag,
+      description: 'Hermès, 茅台, LV 等',
+      category: 'CONSUMER_GOODS',
+      isActive: (path: string, cat: string | null) =>
+        path === '/dashboard' && cat === 'CONSUMER_GOODS',
     },
   ]
 
@@ -27,10 +48,10 @@ export default function Sidebar() {
       <div className="h-20 flex items-center px-6 border-b border-slate-700/50">
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-xl overflow-hidden shadow-lg shadow-blue-500/30">
-            <Image 
-              src="/logo.png" 
-              alt="智析财报" 
-              width={40} 
+            <Image
+              src="/logo.png"
+              alt="智析财报"
+              width={40}
               height={40}
               className="object-cover"
             />
@@ -48,8 +69,8 @@ export default function Sidebar() {
       <nav className="flex-1 px-3 py-6 space-y-2">
         {navigation.map((item) => {
           const Icon = item.icon
-          const isActive = item.isActive(pathname)
-          
+          const isActive = item.isActive(pathname, currentCategory)
+
           return (
             <Link
               key={item.name}

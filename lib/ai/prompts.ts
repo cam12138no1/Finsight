@@ -192,7 +192,7 @@ $113.8B  ✗ 错误
 // ============================================================
 
 export const getAnalysisPrompt = (companyCategory: string, hasResearchReport: boolean = false) => {
-  const categoryContext = companyCategory === 'AI应用公司' 
+  const categoryContext = companyCategory === 'AI应用公司'
     ? `【公司类型：AI应用公司】
 
 重点提取的核心指标（按优先级）：
@@ -206,6 +206,21 @@ export const getAnalysisPrompt = (companyCategory: string, hasResearchReport: bo
 - 用户增长：同时提供绝对值和YoY%（如"DAU 3.35B，+6.00% YoY"）
 - ARPU计算：确认公司定义（全球统一 vs 分地区）
 - 收入拆解：区分impression增长 vs 价格增长的贡献`
+
+    : companyCategory === '消费品公司'
+    ? `【公司类型：消费品公司】
+
+重点提取的核心指标（按优先级）：
+1. 总收入与分地区收入（中国/欧洲/北美/日本/亚太等）
+2. 分品类/品牌收入（如成衣/皮具/香水/手表等）
+3. 同店增长（Organic Growth / Comparable Sales）
+4. 毛利率与经营利润率变化
+5. 库存数据（库存周转天数/库存同比变化）
+
+关键计算注意事项：
+- 消费品常用有机增长（剔除汇率和并购影响），优先报告此数据
+- 注意区分IFRS和非IFRS指标
+- 分地区增速差异反映消费环境变化，必须详细拆解`
 
     : `【公司类型：AI供应链公司】
 
@@ -552,48 +567,73 @@ export const COMPANY_CATEGORIES = {
 - 供应链瓶颈（CoWoS/HBM/先进封装）
 - 竞争格局变化（AMD/Intel/自研芯片）`,
   },
+  CONSUMER_GOODS: {
+    name: '消费品公司',
+    nameEn: 'Consumer Goods Company',
+    prompt: `你是一名顶级消费品行业研究分析师。
+
+【公司类型：消费品公司】
+重点关注：
+- 收入增长拆解（量价拆分/同店增长/新店贡献）
+- 品牌力与定价权（提价幅度/品牌溢价变化）
+- 渠道结构变化（DTC/批发/线上占比）
+- 地区结构变化（中国/欧洲/美国/亚太增速差异）
+- 库存与供应链效率（库存周转天数/DIO变化）
+- 毛利率与成本结构（原材料/物流/汇率影响）
+- 消费者行为趋势（消费降级/升级/品类轮换）`,
+  },
 }
 
 const AI_APPLICATION_COMPANIES = [
-  { symbol: 'META', name: 'Meta Platforms', nameZh: 'Meta' },
+  { symbol: 'MSFT', name: 'Microsoft', nameZh: '微软' },
   { symbol: 'GOOGL', name: 'Alphabet', nameZh: '谷歌' },
   { symbol: 'GOOG', name: 'Alphabet', nameZh: '谷歌' },
-  { symbol: 'MSFT', name: 'Microsoft', nameZh: '微软' },
   { symbol: 'AMZN', name: 'Amazon', nameZh: '亚马逊' },
-  { symbol: 'AAPL', name: 'Apple', nameZh: '苹果' },
-  { symbol: 'NFLX', name: 'Netflix', nameZh: '奈飞' },
+  { symbol: 'META', name: 'Meta Platforms', nameZh: 'Meta' },
   { symbol: 'CRM', name: 'Salesforce', nameZh: 'Salesforce' },
-  { symbol: 'SNOW', name: 'Snowflake', nameZh: 'Snowflake' },
+  { symbol: 'NOW', name: 'ServiceNow', nameZh: 'ServiceNow' },
   { symbol: 'PLTR', name: 'Palantir', nameZh: 'Palantir' },
+  { symbol: 'AAPL', name: 'Apple', nameZh: '苹果' },
+  { symbol: 'APP', name: 'AppLovin', nameZh: 'AppLovin' },
+  { symbol: 'ADBE', name: 'Adobe', nameZh: 'Adobe' },
 ]
 
 const AI_SUPPLY_CHAIN_COMPANIES = [
   { symbol: 'NVDA', name: 'NVIDIA', nameZh: '英伟达' },
   { symbol: 'AMD', name: 'AMD', nameZh: 'AMD' },
-  { symbol: 'INTC', name: 'Intel', nameZh: '英特尔' },
-  { symbol: 'TSM', name: 'TSMC', nameZh: '台积电' },
   { symbol: 'AVGO', name: 'Broadcom', nameZh: '博通' },
-  { symbol: 'QCOM', name: 'Qualcomm', nameZh: '高通' },
+  { symbol: 'TSM', name: 'TSMC', nameZh: '台积电' },
+  { symbol: 'SKM', name: 'SK Hynix', nameZh: 'SK海力士' },
   { symbol: 'MU', name: 'Micron', nameZh: '美光' },
-  { symbol: 'AMAT', name: 'Applied Materials', nameZh: '应用材料' },
-  { symbol: 'LRCX', name: 'Lam Research', nameZh: '泛林' },
-  { symbol: 'KLAC', name: 'KLA', nameZh: 'KLA' },
+  { symbol: 'SSNLF', name: 'Samsung', nameZh: '三星' },
+  { symbol: 'INTC', name: 'Intel', nameZh: '英特尔' },
+  { symbol: 'VRT', name: 'Vertiv', nameZh: 'Vertiv' },
+  { symbol: 'ETN', name: 'Eaton', nameZh: 'Eaton' },
+  { symbol: 'GEV', name: 'GE Vernova', nameZh: 'GE Vernova' },
+  { symbol: 'VST', name: 'Vistra', nameZh: 'Vistra' },
   { symbol: 'ASML', name: 'ASML', nameZh: 'ASML' },
-  { symbol: 'MRVL', name: 'Marvell', nameZh: 'Marvell' },
-  { symbol: 'ARM', name: 'Arm Holdings', nameZh: 'ARM' },
+  { symbol: 'SNPS', name: 'Synopsys', nameZh: 'Synopsys' },
+]
+
+const CONSUMER_GOODS_COMPANIES = [
+  { symbol: 'RMS.PA', name: 'Hermès', nameZh: '爱马仕' },
+  { symbol: '600519.SS', name: 'Kweichow Moutai', nameZh: '贵州茅台' },
+  { symbol: 'CROX', name: 'Crocs', nameZh: 'Crocs' },
+  { symbol: 'RL', name: 'Ralph Lauren', nameZh: 'Ralph Lauren' },
+  { symbol: 'MC.PA', name: 'LVMH', nameZh: '路威酩轩' },
 ]
 
 export function getCompanyCategory(symbolOrName: string): {
-  category: 'AI_APPLICATION' | 'AI_SUPPLY_CHAIN' | 'UNKNOWN'
+  category: 'AI_APPLICATION' | 'AI_SUPPLY_CHAIN' | 'CONSUMER_GOODS' | 'UNKNOWN'
   categoryName: string
   categoryNameEn: string
   prompt: string
   company?: { symbol: string; name: string; nameZh: string }
 } {
   const upperSymbol = symbolOrName.toUpperCase()
-  
+
   const appCompany = AI_APPLICATION_COMPANIES.find(
-    c => c.symbol === upperSymbol || 
+    c => c.symbol === upperSymbol ||
          c.name.toUpperCase().includes(upperSymbol) ||
          c.nameZh.includes(symbolOrName)
   )
@@ -606,9 +646,9 @@ export function getCompanyCategory(symbolOrName: string): {
       company: appCompany,
     }
   }
-  
+
   const supplyCompany = AI_SUPPLY_CHAIN_COMPANIES.find(
-    c => c.symbol === upperSymbol || 
+    c => c.symbol === upperSymbol ||
          c.name.toUpperCase().includes(upperSymbol) ||
          c.nameZh.includes(symbolOrName)
   )
@@ -621,7 +661,22 @@ export function getCompanyCategory(symbolOrName: string): {
       company: supplyCompany,
     }
   }
-  
+
+  const consumerCompany = CONSUMER_GOODS_COMPANIES.find(
+    c => c.symbol.toUpperCase() === upperSymbol ||
+         c.name.toUpperCase().includes(upperSymbol) ||
+         c.nameZh.includes(symbolOrName)
+  )
+  if (consumerCompany) {
+    return {
+      category: 'CONSUMER_GOODS',
+      categoryName: COMPANY_CATEGORIES.CONSUMER_GOODS.name,
+      categoryNameEn: COMPANY_CATEGORIES.CONSUMER_GOODS.nameEn,
+      prompt: COMPANY_CATEGORIES.CONSUMER_GOODS.prompt,
+      company: consumerCompany,
+    }
+  }
+
   return {
     category: 'UNKNOWN',
     categoryName: 'AI应用公司',
@@ -697,3 +752,55 @@ export const CUSTOM_EXTRACTION_PROMPT = `请从财报中提取用户关心的信
 2. 对于计算得出的数据，展示计算过程
 3. 对于未披露的数据，填写"数据未披露"而非留空或猜测
 4. 所有金额使用$XX.XXB格式，所有百分比使用XX.XX%格式`
+
+// ============================================================
+// 财报核心数据客观提取提示词
+// ============================================================
+// 只提取客观数据，不做任何主观评价
+// 严禁：beat/miss判断、投资建议、主观评价、形容词
+
+export const OBJECTIVE_DATA_EXTRACTION_PROMPT = `你是一名专业的财务数据提取员。你的唯一任务是从财报中客观提取核心财务数据。
+
+██████████████████████████████████████████████████████████████
+███  严格禁止事项 - 违反将导致输出被拒绝  ███
+██████████████████████████████████████████████████████████████
+
+❌❌❌ 绝对禁止的内容：
+1. 任何"beat"、"miss"、"strong beat"、"inline"等评价性判断
+2. 任何"超预期"、"不及预期"、"低于预期"等中文评价
+3. 任何投资建议如"超配"、"低配"、"标配"、"加仓"、"减仓"
+4. 任何主观形容词如"强劲"、"亮眼"、"疲软"、"惊人"
+5. 任何AI基于研报数据对比生成的结论
+6. 任何对未来走势的预测或判断
+
+✓✓✓ 只允许的内容：
+1. 从财报文档中直接提取的客观数值
+2. 基于财报数据计算的同比/环比变化（展示计算过程）
+3. 管理层原话引用（标注为"管理层表述"）
+4. 客观事实描述（如"CapEx为$XX.XXB，同比增长XX.XX%"）
+
+【输出要求】
+- 所有数值必须直接来源于输入文档
+- 禁止推测、估算、或使用外部知识
+- 如数据未在文档中披露，填写"数据未披露"
+- 所有金额使用$XX.XXB格式（两位小数）
+- 所有百分比使用XX.XX%格式（两位小数）
+- assessment字段只填写客观的数值变化方向（如"+5.20% YoY"），不填写beat/miss`
+
+export const getConsumerGoodsAnalysisPrompt = () => {
+  return `【公司类型：消费品公司】
+
+重点提取的核心指标（按优先级）：
+1. 总收入与分地区收入（中国/欧洲/北美/日本/亚太等）
+2. 分品类/品牌收入（如成衣/皮具/香水/手表等）
+3. 同店增长（Organic Growth / Comparable Sales）
+4. 毛利率与经营利润率变化
+5. 库存数据（库存周转天数/库存同比变化）
+6. DTC vs 批发渠道占比变化
+7. 汇率影响（Constant Currency vs Reported）
+
+关键计算注意事项：
+- 消费品常用有机增长（剔除汇率和并购影响），优先报告此数据
+- 注意区分IFRS和非IFRS指标
+- 分地区增速差异反映消费环境变化，必须详细拆解`
+}

@@ -19,7 +19,7 @@ interface UploadedFile {
 interface AnalyzeRequest {
   financialFiles: UploadedFile[]
   researchFiles: UploadedFile[]
-  category: 'AI_APPLICATION' | 'AI_SUPPLY_CHAIN'
+  category: 'AI_APPLICATION' | 'AI_SUPPLY_CHAIN' | 'CONSUMER_GOODS'
   requestId: string
   fiscalYear: number
   fiscalQuarter: number
