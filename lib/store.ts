@@ -22,7 +22,7 @@ export interface StoredAnalysis {
   error?: string
   has_research_report?: boolean
   
-  // Complete analysis results
+  // Complete analysis results (objective data extraction)
   one_line_conclusion?: string
   results_summary?: string
   results_table?: ResultsTableRow[]
@@ -45,6 +45,26 @@ export interface StoredAnalysis {
     main_risks: string[]
     checkpoints: string[]
   }
+  comparison_snapshot?: {
+    core_revenue: string
+    core_profit: string
+    guidance: string
+    core_driver_quantified: string
+    main_risk_quantified: string
+    // Legacy fields (kept for backward compat with old data)
+    beat_miss?: string
+    recommendation?: string
+    position_action?: string
+    next_quarter_focus?: string
+  }
+  research_comparison?: {
+    consensus_source: string
+    key_differences: string[]
+    analyst_blind_spots: string
+    // Legacy (kept for backward compat)
+    beat_miss_summary?: string
+  }
+  // Legacy fields (kept for backward compat with old data)
   model_impact?: {
     upgrade_factors: string[]
     downgrade_factors: string[]
@@ -59,23 +79,6 @@ export interface StoredAnalysis {
     recommendation: string
   }
   investment_committee_summary?: string
-  comparison_snapshot?: {
-    core_revenue: string
-    core_profit: string
-    guidance: string
-    beat_miss: string
-    core_driver_quantified: string
-    main_risk_quantified: string
-    recommendation: string
-    position_action: string
-    next_quarter_focus: string
-  }
-  research_comparison?: {
-    consensus_source: string
-    key_differences: string[]
-    beat_miss_summary: string
-    analyst_blind_spots: string
-  }
   metadata?: {
     company_category: string
     analysis_timestamp: string
