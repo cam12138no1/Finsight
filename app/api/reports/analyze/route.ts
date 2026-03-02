@@ -23,6 +23,8 @@ interface AnalyzeRequest {
   requestId: string
   fiscalYear: number
   fiscalQuarter: number
+  useDbFinancialData?: boolean
+  companySymbol?: string
 }
 
 /**
@@ -76,7 +78,7 @@ export async function POST(request: NextRequest) {
     // 解析JSON请求体
     const body: AnalyzeRequest = await request.json()
     
-    const { financialFiles, researchFiles, category, fiscalYear, fiscalQuarter } = body
+    const { financialFiles, researchFiles, category, fiscalYear, fiscalQuarter, useDbFinancialData, companySymbol } = body
     const requestId = body.requestId
     
     console.log(`[分析API] [${sessionId}] 请求参数:`)
@@ -85,14 +87,15 @@ export async function POST(request: NextRequest) {
     console.log(`  - category: ${category}`)
     console.log(`  - fiscalYear: ${fiscalYear}`)
     console.log(`  - fiscalQuarter: ${fiscalQuarter}`)
-    console.log(`  - 财报文件数: ${financialFiles.length}`)
-    console.log(`  - 研报文件数: ${researchFiles.length}`)
+    console.log(`  - 财报文件数: ${financialFiles?.length || 0}`)
+    console.log(`  - 研报文件数: ${researchFiles?.length || 0}`)
+    console.log(`  - 使用DB财报数据: ${useDbFinancialData || false}`)
 
     if (!requestId) {
       return NextResponse.json({ error: '缺少requestId' }, { status: 400 })
     }
 
-    if (!financialFiles || financialFiles.length === 0) {
+    if ((!financialFiles || financialFiles.length === 0) && !useDbFinancialData) {
       return NextResponse.json({ error: '请上传财报文件' }, { status: 400 })
     }
 
@@ -139,46 +142,51 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ★★★ 5. 从 Blob URL 下载文件内容 ★★★
-    console.log(`[分析API] [${sessionId}] 开始从Blob下载文件...`)
-    
-    // 下载财报文件
-    const financialBuffers: { buffer: Buffer; name: string }[] = []
-    for (const file of financialFiles) {
-      console.log(`[分析API] [${sessionId}] 下载财报: ${file.originalName}`)
-      const response = await fetchWithRetry(file.url, { maxRetries: 3 })
-      const arrayBuffer = await response.arrayBuffer()
-      financialBuffers.push({
-        buffer: Buffer.from(arrayBuffer),
-        name: file.originalName,
-      })
-      console.log(`[分析API] [${sessionId}] 下载完成: ${file.originalName} (${(arrayBuffer.byteLength / 1024 / 1024).toFixed(2)}MB)`)
+    // ★★★ 5. 获取财报文本 ★★★
+    let financialText = ''
+
+    if (useDbFinancialData && companySymbol && fiscalYear && fiscalQuarter) {
+      // Pull financial report text from database (cron-fetched data)
+      console.log(`[分析API] [${sessionId}] 从数据库获取财报文本: ${companySymbol} ${fiscalYear} Q${fiscalQuarter}`)
+      try {
+        const { getFetchedQuarter } = await import('@/lib/db/financial-queries')
+        const dbRecord = await getFetchedQuarter(companySymbol, fiscalYear, fiscalQuarter)
+        if (dbRecord?.report_text) {
+          financialText = dbRecord.report_text
+          console.log(`[分析API] [${sessionId}] 从DB获取财报文本: ${financialText.length} 字符`)
+        } else {
+          return NextResponse.json({ error: '该季度的财报原文尚未入库，无法进行研报对比' }, { status: 400 })
+        }
+      } catch (dbErr: any) {
+        console.error(`[分析API] [${sessionId}] DB读取失败:`, dbErr.message)
+        return NextResponse.json({ error: '读取财报数据失败: ' + dbErr.message }, { status: 500 })
+      }
+    } else {
+      // Download financial files from Blob URLs (user-uploaded)
+      console.log(`[分析API] [${sessionId}] 开始从Blob下载文件...`)
+      const financialBuffers: { buffer: Buffer; name: string }[] = []
+      for (const file of (financialFiles || [])) {
+        console.log(`[分析API] [${sessionId}] 下载财报: ${file.originalName}`)
+        const response = await fetchWithRetry(file.url, { maxRetries: 3 })
+        const arrayBuffer = await response.arrayBuffer()
+        financialBuffers.push({ buffer: Buffer.from(arrayBuffer), name: file.originalName })
+      }
+      for (const { buffer, name } of financialBuffers) {
+        const text = await extractTextFromDocument(buffer, name)
+        financialText += text + '\n\n'
+      }
+      console.log(`[分析API] [${sessionId}] 财报文本提取完成: ${financialText.length} 字符`)
     }
-    
-    // 下载研报文件
+
+    // ★★★ 6. 下载并提取研报文本 ★★★
+    let researchText = ''
     const researchBuffers: { buffer: Buffer; name: string }[] = []
-    for (const file of researchFiles) {
+    for (const file of (researchFiles || [])) {
       console.log(`[分析API] [${sessionId}] 下载研报: ${file.originalName}`)
       const response = await fetchWithRetry(file.url, { maxRetries: 3 })
       const arrayBuffer = await response.arrayBuffer()
-      researchBuffers.push({
-        buffer: Buffer.from(arrayBuffer),
-        name: file.originalName,
-      })
-      console.log(`[分析API] [${sessionId}] 下载完成: ${file.originalName} (${(arrayBuffer.byteLength / 1024 / 1024).toFixed(2)}MB)`)
+      researchBuffers.push({ buffer: Buffer.from(arrayBuffer), name: file.originalName })
     }
-
-    // ★★★ 6. 提取文本 ★★★
-    console.log(`[分析API] [${sessionId}] 开始提取文本...`)
-    
-    let financialText = ''
-    for (const { buffer, name } of financialBuffers) {
-      const text = await extractTextFromDocument(buffer, name)
-      financialText += text + '\n\n'
-    }
-    console.log(`[分析API] [${sessionId}] 财报文本提取完成: ${financialText.length} 字符`)
-    
-    let researchText = ''
     for (const { buffer, name } of researchBuffers) {
       const text = await extractTextFromDocument(buffer, name)
       researchText += text + '\n\n'
@@ -189,7 +197,21 @@ export async function POST(request: NextRequest) {
 
     // ★★★ 7. 提取元数据 ★★★
     console.log(`[分析API] [${sessionId}] 开始提取元数据...`)
-    const metadata = await extractMetadataFromReport(financialText)
+    let metadata: any
+    if (useDbFinancialData && companySymbol) {
+      const { getCompanyBySymbol: getCompany } = await import('@/lib/companies')
+      const companyInfo = getCompany(companySymbol)
+      metadata = {
+        company_name: companyInfo?.name || companySymbol,
+        company_symbol: companySymbol,
+        report_type: '10-Q',
+        fiscal_year: fiscalYear,
+        fiscal_quarter: fiscalQuarter,
+        filing_date: new Date().toISOString().split('T')[0],
+      }
+    } else {
+      metadata = await extractMetadataFromReport(financialText)
+    }
     console.log(`[分析API] [${sessionId}] 元数据:`, JSON.stringify(metadata, null, 2))
 
     // 使用用户选择的年份和季度
