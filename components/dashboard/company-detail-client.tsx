@@ -61,7 +61,6 @@ interface Analysis {
   research_comparison?: {
     consensus_source?: string
     key_differences?: string[]
-    beat_miss_summary?: string
     analyst_blind_spots?: string
   }
   has_research_report?: boolean
@@ -136,31 +135,73 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
   // All possible periods: past 3 years of quarters
   const allPeriods = generatePast3YearsQuarters()
 
-  // Load all analyses for this company
+  // DB-fetched quarters (from cron job)
+  const [dbQuarters, setDbQuarters] = useState<Array<{
+    fiscal_year: number
+    fiscal_quarter: number
+    period: string
+    has_analysis: boolean
+    analysis_result: any
+  }>>([])
+
+  // Load all analyses for this company (both user-uploaded and DB-fetched)
   const loadData = useCallback(async () => {
     try {
-      const response = await fetch('/api/dashboard')
-      const data = await response.json()
-      if (data.analyses) {
-        const companyAnalyses = data.analyses.filter(
-          (a: Analysis) => a.company_symbol?.toUpperCase() === symbol.toUpperCase()
-        )
-        companyAnalyses.sort((a: Analysis, b: Analysis) => {
-          const yearA = a.fiscal_year || 0
-          const yearB = b.fiscal_year || 0
-          if (yearB !== yearA) return yearB - yearA
-          return (b.fiscal_quarter || 0) - (a.fiscal_quarter || 0)
-        })
-        setAnalyses(companyAnalyses)
+      const [dashboardRes, companyDataRes] = await Promise.allSettled([
+        fetch('/api/dashboard'),
+        fetch(`/api/company-data?symbol=${encodeURIComponent(symbol)}`),
+      ])
 
-        // Auto-select the most recent quarter that has data
-        if (companyAnalyses.length > 0 && !selectedPeriod) {
-          const first = companyAnalyses[0]
-          const key = `${first.fiscal_year} Q${first.fiscal_quarter}`
-          setSelectedPeriod(key)
-          setSelectedAnalysis(first)
+      // User-uploaded analyses
+      if (dashboardRes.status === 'fulfilled') {
+        const data = await dashboardRes.value.json()
+        if (data.analyses) {
+          const companyAnalyses = data.analyses.filter(
+            (a: Analysis) => a.company_symbol?.toUpperCase() === symbol.toUpperCase()
+          )
+          companyAnalyses.sort((a: Analysis, b: Analysis) => {
+            const yearA = a.fiscal_year || 0
+            const yearB = b.fiscal_year || 0
+            if (yearB !== yearA) return yearB - yearA
+            return (b.fiscal_quarter || 0) - (a.fiscal_quarter || 0)
+          })
+          setAnalyses(companyAnalyses)
+
+          if (companyAnalyses.length > 0 && !selectedPeriod) {
+            const first = companyAnalyses[0]
+            const key = `${first.fiscal_year} Q${first.fiscal_quarter}`
+            setSelectedPeriod(key)
+            setSelectedAnalysis(first)
+          }
         }
       }
+
+      // DB-fetched data from cron
+      if (companyDataRes.status === 'fulfilled') {
+        const data = await companyDataRes.value.json()
+        if (data.financials && data.financials.length > 0) {
+          const quarters = data.financials.map((f: any) => ({
+            fiscal_year: f.fiscal_year,
+            fiscal_quarter: f.fiscal_quarter,
+            period: f.period,
+            has_analysis: !!f.analysis_result,
+            analysis_result: f.analysis_result,
+          }))
+          setDbQuarters(quarters)
+
+          // If no user analyses but DB has data, auto-select first
+          if (dashboardRes.status === 'fulfilled') {
+            const dashData = await dashboardRes.value.json().catch(() => ({ analyses: [] }))
+            const userHasData = (dashData.analyses || []).some(
+              (a: Analysis) => a.company_symbol?.toUpperCase() === symbol.toUpperCase() && a.processed
+            )
+            if (!userHasData && quarters.length > 0 && !selectedPeriod) {
+              setSelectedPeriod(quarters[0].period)
+            }
+          }
+        }
+      }
+
       setIsLoading(false)
     } catch (error) {
       console.error('Failed to load data:', error)
@@ -198,7 +239,7 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
       .finally(() => setIsLoadingFull(false))
   }, [selectedAnalysis])
 
-  // Map of existing analyses by period key
+  // Map of existing analyses by period key (user-uploaded + DB)
   const analysisByPeriod = new Map<string, Analysis>()
   for (const a of analyses) {
     if (a.processed && !a.error && a.fiscal_year && a.fiscal_quarter) {
@@ -207,6 +248,13 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
         analysisByPeriod.set(key, a)
       }
     }
+  }
+
+  // Also mark DB quarters that have analysis results as having data
+  const dbDataPeriods = new Set<string>()
+  for (const dq of dbQuarters) {
+    const key = `${dq.fiscal_year} Q${dq.fiscal_quarter}`
+    dbDataPeriods.add(key)
   }
 
   const handlePeriodSelect = (periodLabel: string) => {
@@ -373,7 +421,9 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
   }
 
   const isProcessing = uploadStatus === 'uploading' || uploadStatus === 'analyzing'
-  const hasDataForSelected = selectedPeriod ? analysisByPeriod.has(selectedPeriod) : false
+  const hasDataForSelected = selectedPeriod
+    ? (analysisByPeriod.has(selectedPeriod) || dbDataPeriods.has(selectedPeriod))
+    : false
 
   if (isLoading) {
     return (
@@ -419,7 +469,7 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
           <div className="space-y-1 max-h-[calc(100vh-200px)] overflow-y-auto pr-1">
             {allPeriods.map(p => {
               const key = p.label
-              const hasData = analysisByPeriod.has(key)
+              const hasData = analysisByPeriod.has(key) || dbDataPeriods.has(key)
               const isSelected = selectedPeriod === key
               const isProcessingPeriod = analyses.some(
                 a => a.processing && !a.processed &&

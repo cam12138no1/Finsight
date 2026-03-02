@@ -173,15 +173,13 @@ export default function AnalysisView({ analysis, onBack }: AnalysisViewProps) {
     if (data.results_table && data.results_table.length > 0) {
       const rows = data.results_table.map((row: any) => {
         const deltaClass = row.delta?.startsWith('-') ? 'text-red' : (row.delta?.startsWith('+') ? 'text-green' : '')
-        const assessmentClass = row.assessment?.toLowerCase().includes('beat') || row.assessment?.includes('超预期') ? 'badge-green' : 
-                               row.assessment?.toLowerCase().includes('miss') || row.assessment?.includes('不及') ? 'badge-red' : 'badge-gray'
         return `
           <tr>
             <td style="font-weight: 500;">${row.metric || '-'}</td>
             <td class="text-right" style="font-weight: 600;">${row.actual || '-'}</td>
             <td class="text-right" style="color: #6b7280;">${row.consensus || '-'}</td>
             <td class="text-right ${deltaClass}" style="font-weight: 600;">${row.delta || '-'}</td>
-            <td><span class="badge ${assessmentClass}">${row.assessment || '-'}</span></td>
+            <td style="color: #6b7280; font-size: 11px;">${row.assessment || '-'}</td>
           </tr>
         `
       }).join('')
@@ -387,10 +385,7 @@ export default function AnalysisView({ analysis, onBack }: AnalysisViewProps) {
     `
   }
 
-  const getAssessmentColor = (assessment: string) => {
-    const lower = (assessment || '').toLowerCase()
-    if (lower.includes('beat') || lower.includes('超预期') || lower.includes('strong')) return 'text-green-600 bg-green-50'
-    if (lower.includes('miss') || lower.includes('不及') || lower.includes('shock')) return 'text-red-600 bg-red-50'
+  const getAssessmentColor = (_assessment: string) => {
     return 'text-gray-600 bg-gray-50'
   }
 
@@ -801,13 +796,6 @@ export default function AnalysisView({ analysis, onBack }: AnalysisViewProps) {
               </div>
             </CardHeader>
             <CardContent>
-              {analysis.research_comparison.beat_miss_summary && (
-                <div className="p-4 bg-white/70 rounded-xl mb-4">
-                  <p className="text-xs font-medium text-indigo-700 mb-1">Beat/Miss 总结</p>
-                  <p className="text-indigo-900 font-medium">{analysis.research_comparison.beat_miss_summary}</p>
-                </div>
-              )}
-              
               {analysis.research_comparison.key_differences && analysis.research_comparison.key_differences.length > 0 && (
                 <div className="p-4 bg-white/70 rounded-xl mb-4">
                   <p className="text-xs font-medium text-indigo-700 mb-2">关键差异点</p>

@@ -10,7 +10,7 @@ import {
   type CompanyCategory,
   type Company,
 } from '@/lib/companies'
-import { buildCompanyDataFromAnalyses, type CompanyFinancialData } from '@/lib/financial-api'
+import { buildCompanyDataFromAnalyses, type CompanyFinancialData, type QuarterData, type QuarterlyMetrics } from '@/lib/financial-api'
 
 interface Analysis {
   id: string
@@ -36,6 +36,23 @@ interface Analysis {
     core_revenue?: string
     core_profit?: string
   }
+}
+
+interface FetchedFinancial {
+  symbol: string
+  company_name: string
+  category: string
+  fiscal_year: number
+  fiscal_quarter: number
+  period: string
+  revenue: string | null
+  revenue_yoy: string | null
+  net_income: string | null
+  net_income_yoy: string | null
+  eps: string | null
+  eps_yoy: string | null
+  operating_margin: string | null
+  gross_margin: string | null
 }
 
 const CATEGORY_LABELS: Record<CompanyCategory, { name: string; icon: typeof Building2 }> = {
@@ -70,6 +87,7 @@ function MetricDelta({ value }: { value: string | undefined }) {
 
 export default function DashboardClient() {
   const [analyses, setAnalyses] = useState<Analysis[]>([])
+  const [dbFinancials, setDbFinancials] = useState<FetchedFinancial[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -79,32 +97,110 @@ export default function DashboardClient() {
 
   const loadDashboardData = useCallback(async () => {
     try {
-      const response = await fetch('/api/dashboard')
-      const data = await response.json()
-      if (data.analyses) {
-        setAnalyses(data.analyses)
+      // Fetch both user analyses and DB-stored financials in parallel
+      const [dashboardRes, companyDataRes] = await Promise.allSettled([
+        fetch('/api/dashboard'),
+        fetch(`/api/company-data?category=${activeCategory}`),
+      ])
+
+      if (dashboardRes.status === 'fulfilled') {
+        const data = await dashboardRes.value.json()
+        if (data.analyses) {
+          setAnalyses(data.analyses)
+        }
       }
+
+      if (companyDataRes.status === 'fulfilled') {
+        const data = await companyDataRes.value.json()
+        if (data.financials) {
+          setDbFinancials(data.financials)
+        }
+      }
+
       setIsLoading(false)
     } catch (error) {
       console.error('Failed to load dashboard data:', error)
       setIsLoading(false)
     }
-  }, [])
+  }, [activeCategory])
 
   useEffect(() => {
     loadDashboardData()
   }, [loadDashboardData])
 
-  // Build financial data from analyses, keyed by symbol
+  // Build financial data from both DB records and user analyses, keyed by symbol
   const companyDataMap = useMemo(() => {
-    const completedAnalyses = analyses.filter(a => a.processed && !a.error)
-    const allCompanyData = buildCompanyDataFromAnalyses(completedAnalyses)
     const map = new Map<string, CompanyFinancialData>()
-    for (const cd of allCompanyData) {
-      map.set(cd.symbol.toUpperCase(), cd)
+
+    // 1. First add DB-fetched data (from cron job)
+    for (const f of dbFinancials) {
+      const sym = f.symbol.toUpperCase()
+      if (!map.has(sym)) {
+        map.set(sym, {
+          symbol: f.symbol,
+          name: f.company_name,
+          nameZh: f.company_name,
+          category: f.category as CompanyCategory,
+          quarters: [],
+          lastUpdated: '',
+        })
+      }
+      const company = map.get(sym)!
+      const exists = company.quarters.some(
+        q => q.fiscalYear === f.fiscal_year && q.fiscalQuarter === f.fiscal_quarter
+      )
+      if (!exists) {
+        company.quarters.push({
+          fiscalYear: f.fiscal_year,
+          fiscalQuarter: f.fiscal_quarter,
+          period: f.period,
+          metrics: {
+            revenue: f.revenue || '',
+            revenueYoY: f.revenue_yoy || '',
+            netIncome: f.net_income || '',
+            netIncomeYoY: f.net_income_yoy || '',
+            eps: f.eps || '',
+            epsYoY: f.eps_yoy || '',
+            operatingMargin: f.operating_margin || '',
+            grossMargin: f.gross_margin || '',
+          },
+          reportAvailable: true,
+        })
+      }
     }
+
+    // 2. Then merge user-uploaded analysis data (overrides DB data for same quarter)
+    const completedAnalyses = analyses.filter(a => a.processed && !a.error)
+    const userCompanyData = buildCompanyDataFromAnalyses(completedAnalyses)
+    for (const cd of userCompanyData) {
+      const sym = cd.symbol.toUpperCase()
+      if (!map.has(sym)) {
+        map.set(sym, cd)
+      } else {
+        const existing = map.get(sym)!
+        for (const q of cd.quarters) {
+          const idx = existing.quarters.findIndex(
+            eq => eq.fiscalYear === q.fiscalYear && eq.fiscalQuarter === q.fiscalQuarter
+          )
+          if (idx >= 0) {
+            existing.quarters[idx] = q
+          } else {
+            existing.quarters.push(q)
+          }
+        }
+      }
+    }
+
+    // Sort quarters newest first within each company
+    for (const company of map.values()) {
+      company.quarters.sort((a, b) => {
+        if (b.fiscalYear !== a.fiscalYear) return b.fiscalYear - a.fiscalYear
+        return b.fiscalQuarter - a.fiscalQuarter
+      })
+    }
+
     return map
-  }, [analyses])
+  }, [analyses, dbFinancials])
 
   const companies = getCompaniesForCategory(activeCategory)
   const categoryInfo = CATEGORY_LABELS[activeCategory]

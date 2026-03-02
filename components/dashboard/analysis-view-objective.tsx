@@ -45,7 +45,6 @@ interface Analysis {
   research_comparison?: {
     consensus_source?: string
     key_differences?: string[]
-    beat_miss_summary?: string
     analyst_blind_spots?: string
   }
 }

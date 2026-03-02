@@ -146,11 +146,8 @@ export default function ReportsPage() {
                             {row.delta}
                           </span>
                         </td>
-                        <td className="py-3 px-4">
-                          <Badge variant={row.assessment?.includes('超预期') || row.assessment?.includes('Beat') ? 'default' : 
-                                         row.assessment?.includes('不及') || row.assessment?.includes('Miss') ? 'destructive' : 'secondary'}>
-                            {row.assessment}
-                          </Badge>
+                        <td className="py-3 px-4 text-sm text-slate-600">
+                          {row.assessment || '-'}
                         </td>
                       </tr>
                     ))}
@@ -368,18 +365,6 @@ export default function ReportsPage() {
                     <div className="p-3 bg-red-50 rounded">
                       <p className="text-sm font-medium text-red-700">⚠️ 更担心的点</p>
                       <p className="text-gray-900 mt-1">{selectedAnalysis.final_judgment.concerns}</p>
-                    </div>
-                  )}
-                  {selectedAnalysis.final_judgment.net_impact && (
-                    <div className="p-3 bg-blue-50 rounded">
-                      <p className="text-sm font-medium text-blue-700">📊 净影响</p>
-                      <p className="text-lg font-semibold text-blue-700 mt-1">{selectedAnalysis.final_judgment.net_impact}</p>
-                    </div>
-                  )}
-                  {selectedAnalysis.final_judgment.recommendation && (
-                    <div className="p-3 bg-purple-50 rounded">
-                      <p className="text-sm font-medium text-purple-700">💡 投资建议</p>
-                      <p className="text-gray-900 mt-1">{selectedAnalysis.final_judgment.recommendation}</p>
                     </div>
                   )}
                 </div>

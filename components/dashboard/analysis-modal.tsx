@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Download, TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle, Target, Lightbulb, BarChart3, DollarSign, Shield, Loader2 } from 'lucide-react'
+import { X, Download, AlertTriangle, CheckCircle, Target, BarChart3, DollarSign, Loader2, TrendingUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 interface Analysis {
@@ -64,30 +64,16 @@ interface Analysis {
     downgrade_factors: string[]
     logic_chain: string
   }
-  final_judgment?: {
-    confidence: string
-    concerns: string
-    watch_list: string
-    net_impact: string
-    long_term_narrative: string
-    recommendation: string
-  }
-  investment_committee_summary?: string
   comparison_snapshot?: {
     core_revenue?: string
     core_profit?: string
     guidance?: string
-    beat_miss?: string
     core_driver_quantified?: string
     main_risk_quantified?: string
-    recommendation?: string
-    position_action?: string
-    next_quarter_focus?: string
   }
   research_comparison?: {
     consensus_source?: string
     key_differences?: string[]
-    beat_miss_summary?: string
     analyst_blind_spots?: string
   }
 }
@@ -250,15 +236,13 @@ export default function AnalysisModal({ analysis, onClose }: AnalysisModalProps)
     if (data.results_table && data.results_table.length > 0) {
       const rows = data.results_table.map((row) => {
         const deltaClass = row.delta?.startsWith('-') ? 'text-red' : (row.delta?.startsWith('+') ? 'text-green' : '')
-        const assessmentClass = row.assessment?.toLowerCase().includes('beat') || row.assessment?.includes('超预期') ? 'badge-green' : 
-                               row.assessment?.toLowerCase().includes('miss') || row.assessment?.includes('不及') ? 'badge-red' : 'badge-gray'
         return `
           <tr>
             <td style="font-weight: 500;">${row.metric || '-'}</td>
             <td class="text-right" style="font-weight: 600;">${row.actual || '-'}</td>
             <td class="text-right" style="color: #6b7280;">${row.consensus || '-'}</td>
             <td class="text-right ${deltaClass}" style="font-weight: 600;">${row.delta || '-'}</td>
-            <td><span class="badge ${assessmentClass}">${row.assessment || '-'}</span></td>
+            <td style="color: #6b7280; font-size: 11px;">${row.assessment || '-'}</td>
           </tr>
         `
       }).join('')
@@ -456,25 +440,6 @@ export default function AnalysisModal({ analysis, onClose }: AnalysisModalProps)
     `
   }
 
-  // 获取Beat/Miss样式
-  const getBeatMissStyle = (beatMiss?: string) => {
-    if (!beatMiss) return { bg: 'bg-gray-100', text: 'text-gray-600', icon: Minus }
-    const lower = beatMiss.toLowerCase()
-    if (lower.includes('strong beat')) {
-      return { bg: 'bg-green-100', text: 'text-green-700', icon: TrendingUp }
-    } else if (lower.includes('beat')) {
-      return { bg: 'bg-green-50', text: 'text-green-600', icon: TrendingUp }
-    } else if (lower.includes('strong miss')) {
-      return { bg: 'bg-red-100', text: 'text-red-700', icon: TrendingDown }
-    } else if (lower.includes('miss')) {
-      return { bg: 'bg-red-50', text: 'text-red-600', icon: TrendingDown }
-    }
-    return { bg: 'bg-gray-100', text: 'text-gray-600', icon: Minus }
-  }
-
-  const beatMissStyle = getBeatMissStyle(fullAnalysis.comparison_snapshot?.beat_miss || fullAnalysis.final_judgment?.net_impact)
-  const BeatMissIcon = beatMissStyle.icon
-
   return (
     <div className="fixed inset-0 z-50 overflow-hidden">
       {/* Backdrop */}
@@ -494,13 +459,12 @@ export default function AnalysisModal({ analysis, onClose }: AnalysisModalProps)
               </div>
               <div>
                 <h2 className="text-xl font-bold text-slate-900">{fullAnalysis.company_name}</h2>
-                <p className="text-sm text-slate-500">{fullAnalysis.period} · {fullAnalysis.category === 'AI_APPLICATION' ? 'AI应用公司' : 'AI供应链公司'}</p>
-              </div>
-              <div className={`ml-4 px-3 py-1.5 rounded-full ${beatMissStyle.bg} ${beatMissStyle.text} flex items-center gap-1.5`}>
-                <BeatMissIcon className="h-4 w-4" />
-                <span className="text-sm font-medium">
-                  {fullAnalysis.comparison_snapshot?.beat_miss || fullAnalysis.final_judgment?.net_impact || 'Inline'}
-                </span>
+                <p className="text-sm text-slate-500">
+                  {fullAnalysis.period} · {
+                    fullAnalysis.category === 'AI_APPLICATION' ? 'AI应用公司' :
+                    fullAnalysis.category === 'CONSUMER_GOODS' ? '消费品公司' : 'AI供应链公司'
+                  }
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -565,30 +529,26 @@ export default function AnalysisModal({ analysis, onClose }: AnalysisModalProps)
                           <th className="px-4 py-3 text-left font-semibold text-slate-600">实际</th>
                           <th className="px-4 py-3 text-left font-semibold text-slate-600">预期</th>
                           <th className="px-4 py-3 text-left font-semibold text-slate-600">差异</th>
-                          <th className="px-4 py-3 text-left font-semibold text-slate-600">评估</th>
+                          <th className="px-4 py-3 text-left font-semibold text-slate-600">同比变化</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {fullAnalysis.results_table.map((row, idx) => (
                           <tr key={idx} className="hover:bg-slate-50">
                             <td className="px-4 py-3 font-medium text-slate-800">{row.metric}</td>
-                            <td className="px-4 py-3 text-slate-700">{row.actual}</td>
-                            <td className="px-4 py-3 text-slate-500">{row.consensus}</td>
+                            <td className="px-4 py-3 text-slate-700 font-mono">{row.actual}</td>
+                            <td className="px-4 py-3 text-slate-500 font-mono">{row.consensus || '-'}</td>
                             <td className="px-4 py-3">
-                              <span className={`font-medium ${
+                              <span className={`font-medium font-mono ${
                                 row.delta?.startsWith('+') ? 'text-green-600' : 
                                 row.delta?.startsWith('-') ? 'text-red-600' : 'text-slate-600'
                               }`}>
-                                {row.delta}
+                                {row.delta || '-'}
                               </span>
                             </td>
                             <td className="px-4 py-3">
-                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                row.assessment?.toLowerCase().includes('beat') ? 'bg-green-100 text-green-700' :
-                                row.assessment?.toLowerCase().includes('miss') ? 'bg-red-100 text-red-700' :
-                                'bg-gray-100 text-gray-600'
-                              }`}>
-                                {row.assessment}
+                              <span className="text-xs text-slate-600">
+                                {row.assessment || '-'}
                               </span>
                             </td>
                           </tr>
@@ -732,11 +692,6 @@ export default function AnalysisModal({ analysis, onClose }: AnalysisModalProps)
                   {fullAnalysis.research_comparison.consensus_source && (
                     <p className="text-sm text-slate-700 mb-3">
                       <strong>预期来源：</strong>{fullAnalysis.research_comparison.consensus_source}
-                    </p>
-                  )}
-                  {fullAnalysis.research_comparison.beat_miss_summary && (
-                    <p className="text-sm text-slate-700 mb-3">
-                      <strong>总结：</strong>{fullAnalysis.research_comparison.beat_miss_summary}
                     </p>
                   )}
                   {fullAnalysis.research_comparison.key_differences && fullAnalysis.research_comparison.key_differences.length > 0 && (

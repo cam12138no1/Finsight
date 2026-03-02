@@ -5,11 +5,20 @@
   "installCommand": "npm install",
   "framework": "nextjs",
   "regions": ["iad1", "hkg1"],
+  "crons": [
+    {
+      "path": "/api/cron/fetch-reports",
+      "schedule": "0 6 * * *"
+    }
+  ],
   "functions": {
     "app/api/reports/upload/**": {
       "maxDuration": 300
     },
     "app/api/reports/analyze/**": {
+      "maxDuration": 300
+    },
+    "app/api/cron/**": {
       "maxDuration": 300
     },
     "app/api/comparison/**": {

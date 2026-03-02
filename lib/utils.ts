@@ -20,8 +20,3 @@ export function formatPercentage(num: number, decimals: number = 2): string {
   return `${(num * 100).toFixed(decimals)}%`
 }
 
-export function getBeatMissVariant(difference: number): 'success' | 'destructive' | 'secondary' {
-  if (difference > 0) return 'success'
-  if (difference < 0) return 'destructive'
-  return 'secondary'
-}

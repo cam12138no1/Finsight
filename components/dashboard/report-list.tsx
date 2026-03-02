@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTranslations } from 'next-intl'
 import { format } from 'date-fns'
-import { FileText, ChevronRight, Loader2, TrendingUp, TrendingDown, Minus, Calendar, RefreshCw, AlertCircle, Trash2, Eraser } from 'lucide-react'
+import { FileText, ChevronRight, Loader2, Calendar, RefreshCw, AlertCircle, Trash2, Eraser } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 interface ReportListProps {
@@ -126,14 +126,13 @@ export default function ReportList({ onSelectAnalysis, onRefresh }: ReportListPr
     }
   }
 
-  const getNetImpactIcon = (report: any) => {
-    const impact = report?.final_judgment?.net_impact || ''
-    if (impact.includes('stronger') || impact.includes('Stronger') || impact.includes('强')) {
-      return <TrendingUp className="h-4 w-4 text-green-500" />
-    } else if (impact.includes('weaker') || impact.includes('Weaker') || impact.includes('弱')) {
-      return <TrendingDown className="h-4 w-4 text-red-500" />
+  const getStatusIcon = (report: any) => {
+    if (report?.processed && !report?.error) {
+      return <FileText className="h-4 w-4 text-green-500" />
+    } else if (report?.error) {
+      return <AlertCircle className="h-4 w-4 text-red-500" />
     }
-    return <Minus className="h-4 w-4 text-gray-400" />
+    return <FileText className="h-4 w-4 text-gray-400" />
   }
 
   // Count stale processing reports (older than 10 minutes)
@@ -347,7 +346,7 @@ export default function ReportList({ onSelectAnalysis, onRefresh }: ReportListPr
                   </div>
                 ) : report.processed ? (
                   <div className="flex items-center gap-2">
-                    {getNetImpactIcon(report)}
+                    {getStatusIcon(report)}
                     <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
                       {t('common.completed')}
                     </span>
