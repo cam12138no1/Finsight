@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { X, Upload, Loader2, FileText, CheckCircle2, AlertCircle, Trash2, Building2, Cpu, FileBarChart, BookOpen, Calendar } from 'lucide-react'
+import { X, Upload, Loader2, FileText, CheckCircle2, AlertCircle, Trash2, Building2, Cpu, ShoppingBag, FileBarChart, BookOpen, Calendar } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { toast } from '@/components/ui/toaster'
 import { upload } from '@vercel/blob/client'
@@ -30,12 +30,17 @@ const COMPANY_CATEGORIES = {
   AI_APPLICATION: {
     name: 'AI应用公司',
     icon: Building2,
-    description: 'Meta, Google, Microsoft, Salesforce 等'
+    description: 'Microsoft, Google, Meta, Salesforce 等'
   },
   AI_SUPPLY_CHAIN: {
     name: 'AI供应链公司',
     icon: Cpu,
     description: 'Nvidia, AMD, TSMC, ASML 等'
+  },
+  CONSUMER_GOODS: {
+    name: '消费品公司',
+    icon: ShoppingBag,
+    description: 'Hermès, 茅台, LV, Crocs 等'
   }
 }
 
@@ -57,7 +62,7 @@ const MAX_FILE_SIZE = 500 * 1024 * 1024
 export default function UploadModal({ isOpen, onClose, onSuccess }: UploadModalProps) {
   const [financialFiles, setFinancialFiles] = useState<FileItem[]>([])
   const [researchFiles, setResearchFiles] = useState<FileItem[]>([])
-  const [selectedCategory, setSelectedCategory] = useState<'AI_APPLICATION' | 'AI_SUPPLY_CHAIN' | null>(null)
+  const [selectedCategory, setSelectedCategory] = useState<'AI_APPLICATION' | 'AI_SUPPLY_CHAIN' | 'CONSUMER_GOODS' | null>(null)
   const [selectedYear, setSelectedYear] = useState<number>(currentYear)
   const [selectedQuarter, setSelectedQuarter] = useState<number>(4) // 默认Q4
   const [analysisStatus, setAnalysisStatus] = useState<AnalysisStatus>('idle')
@@ -649,14 +654,14 @@ export default function UploadModal({ isOpen, onClose, onSuccess }: UploadModalP
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-3">公司分类</label>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-3">
                   {Object.entries(COMPANY_CATEGORIES).map(([key, value]) => {
                     const Icon = value.icon
                     const isSelected = selectedCategory === key
                     return (
                       <button
                         key={key}
-                        onClick={() => setSelectedCategory(key as 'AI_APPLICATION' | 'AI_SUPPLY_CHAIN')}
+                        onClick={() => setSelectedCategory(key as 'AI_APPLICATION' | 'AI_SUPPLY_CHAIN' | 'CONSUMER_GOODS')}
                         className={`p-3 rounded-xl border-2 text-left transition-all ${
                           isSelected 
                             ? 'border-blue-500 bg-blue-50' 

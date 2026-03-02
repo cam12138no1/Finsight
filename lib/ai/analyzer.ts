@@ -13,7 +13,7 @@ export interface ReportMetadata {
     operatingIncome?: number
   }
   // Optional category override from user selection
-  category?: 'AI_APPLICATION' | 'AI_SUPPLY_CHAIN' | null
+  category?: 'AI_APPLICATION' | 'AI_SUPPLY_CHAIN' | 'CONSUMER_GOODS' | null
 }
 
 // Results table row structure
@@ -149,6 +149,17 @@ const AI_SUPPLY_CHAIN_CONTEXT = `【公司类型：AI供应链公司】
 - 客户集中度与订单可见性
 - 供应链瓶颈（CoWoS/HBM/先进封装）
 - 竞争格局变化（AMD/Intel/自研芯片）`
+
+// 消费品公司专用提示
+const CONSUMER_GOODS_CONTEXT = `【公司类型：消费品公司】
+重点关注维度：
+- 收入增长拆解（量价拆分/同店增长/新店贡献）
+- 品牌力与定价权（提价幅度/品牌溢价变化）
+- 渠道结构变化（DTC/批发/线上占比）
+- 地区结构变化（中国/欧洲/美国/亚太增速差异）
+- 库存与供应链效率（库存周转天数/DIO变化）
+- 毛利率与成本结构（原材料/物流/汇率影响）
+- 消费者行为趋势（消费降级/升级/品类轮换）`
 
 // JSON输出格式 - 无研报版本
 const JSON_OUTPUT_INSTRUCTION = `
@@ -392,7 +403,7 @@ export async function analyzeFinancialReport(
 ): Promise<AnalysisResult> {
   // Determine company category - use override if provided, otherwise auto-detect
   let companyInfo: {
-    category: 'AI_APPLICATION' | 'AI_SUPPLY_CHAIN' | 'UNKNOWN'
+    category: 'AI_APPLICATION' | 'AI_SUPPLY_CHAIN' | 'CONSUMER_GOODS' | 'UNKNOWN'
     categoryName: string
     categoryNameEn: string
     prompt: string
@@ -402,8 +413,8 @@ export async function analyzeFinancialReport(
       nameZh: string
     }
   }
-  
-  if (metadata.category && (metadata.category === 'AI_APPLICATION' || metadata.category === 'AI_SUPPLY_CHAIN')) {
+
+  if (metadata.category && (metadata.category === 'AI_APPLICATION' || metadata.category === 'AI_SUPPLY_CHAIN' || metadata.category === 'CONSUMER_GOODS')) {
     // Use the user-selected category
     const categoryConfig = COMPANY_CATEGORIES[metadata.category]
     companyInfo = {
@@ -442,8 +453,10 @@ export async function analyzeFinancialReport(
   console.log(`财报文本: ${truncatedReportText.length} 字符, 研报文本: ${truncatedResearchText.length} 字符`)
   
   // Build category-specific context
-  const categoryContext = companyInfo.category === 'AI_APPLICATION' 
-    ? AI_APPLICATION_CONTEXT 
+  const categoryContext = companyInfo.category === 'AI_APPLICATION'
+    ? AI_APPLICATION_CONTEXT
+    : companyInfo.category === 'CONSUMER_GOODS'
+    ? CONSUMER_GOODS_CONTEXT
     : AI_SUPPLY_CHAIN_CONTEXT
   
   // Build complete system prompt based on whether we have research report
