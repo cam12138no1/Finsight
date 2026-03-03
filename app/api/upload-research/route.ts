@@ -15,6 +15,37 @@ export const maxDuration = 300
  * Receives research report PDF via FormData, uploads to Vercel Blob (private),
  * extracts text server-side, then runs AI comparison with financial data from DB.
  */
+/**
+ * DELETE /api/upload-research?id={analysis_id}
+ *
+ * Deletes a research comparison analysis by ID.
+ */
+export async function DELETE(request: NextRequest) {
+  try {
+    const sessionResult = await validateSession(request, 'Delete Research')
+    if (!sessionResult.valid) {
+      return NextResponse.json({ error: sessionResult.error }, { status: sessionResult.status })
+    }
+    const userId = sessionResult.session.userId
+
+    const id = request.nextUrl.searchParams.get('id')
+    if (!id) {
+      return NextResponse.json({ error: '缺少分析ID' }, { status: 400 })
+    }
+
+    const deleted = await analysisStore.delete(userId, id)
+    if (!deleted) {
+      return NextResponse.json({ error: '未找到该分析记录' }, { status: 404 })
+    }
+
+    console.log(`[Research] Deleted analysis ${id} for user ${userId}`)
+    return NextResponse.json({ success: true })
+  } catch (error: any) {
+    console.error('[Research] Delete error:', error.message)
+    return NextResponse.json({ error: error.message || '删除失败' }, { status: 500 })
+  }
+}
+
 export async function POST(request: NextRequest) {
   const startTime = Date.now()
   let userId: string | null = null

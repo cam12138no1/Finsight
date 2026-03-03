@@ -315,92 +315,131 @@ const OBJECTIVE_JSON_OUTPUT = `
 
 const COMPARISON_JSON_OUTPUT = `
 
-请严格按照以下JSON格式输出，将财报实际数据与研报预期进行客观对比。
-重要：只展示数据差异，不做主观评价判断。禁止beat/miss等评价词。
+请严格按照以下JSON格式输出，将财报实际数据与研报预期进行逐项客观对比。
+重要：只展示数据差异和计算过程，不做主观评价判断。禁止beat/miss等评价词。
 
 {
-  "one_line_conclusion": "核心数据对比：Revenue $XX.XXB (YoY +XX.XX%), 研报预期 $XX.XXB (差异 +XX.XX%); EPS $X.XX, 研报预期 $X.XX (差异 +XX.XX%)",
+  "one_line_conclusion": "核心数据对比概要（中文，1-2句话）：Revenue实际值 vs 研报预期，差异幅度；EPS实际值 vs 预期，差异幅度",
 
-  "results_summary": "实际数据与研报预期差异的客观描述（量化各项差异）",
+  "results_summary": "差异来源拆解（必须量化）：需求端贡献约X%，变现端贡献约X%，成本端贡献约X%",
 
   "results_table": [
-    {"metric": "Revenue", "actual": "$XX.XXB", "consensus": "$XX.XXB (来源机构)", "delta": "+XX.XX%（vs预期）", "assessment": "YoY +XX.XX%, vs预期差异 +XX.XX%", "importance": "差异原因的客观说明"},
-    {"metric": "Operating Income", "actual": "$XX.XXB", "consensus": "$XX.XXB (来源)", "delta": "+XX.XX%（vs预期）", "assessment": "YoY +XX.XX%, vs预期差异 +XX.XX%"},
-    {"metric": "Operating Margin", "actual": "XX.XX%", "consensus": "XX.XX% (来源)", "delta": "+/-XX bps（vs预期）", "assessment": "YoY变化 +/-XX bps, vs预期差异 XX bps"},
-    {"metric": "EPS (Diluted)", "actual": "$X.XX", "consensus": "$X.XX (来源)", "delta": "+XX.XX%（vs预期）", "assessment": "YoY +XX.XX%, vs预期差异 +XX.XX%"},
-    {"metric": "Net Income", "actual": "$XX.XXB", "consensus": "$XX.XXB (来源)", "delta": "+XX.XX%（vs预期）", "assessment": "YoY +XX.XX%, vs预期差异 +XX.XX%"},
-    {"metric": "下季指引 Revenue", "actual": "$XX-XXB", "consensus": "$XXB (来源隐含)", "delta": "+XX%（vs预期）", "assessment": "指引范围 vs 研报预期差异"}
+    {
+      "metric": "Revenue",
+      "actual": "$XX.XXB",
+      "consensus": "$XX.XXB (来源机构名称)",
+      "delta": "+XX.XX%",
+      "assessment": "YoY +XX.XX%, vs预期差异 +XX.XX%，计算：(实际-预期)/预期",
+      "importance": "差异主要来自哪个业务板块或地区"
+    },
+    {
+      "metric": "Operating Income",
+      "actual": "$XX.XXB",
+      "consensus": "$XX.XXB (来源)",
+      "delta": "+XX.XX%",
+      "assessment": "YoY +XX.XX%, vs预期差异 +XX.XX%"
+    },
+    {
+      "metric": "Operating Margin",
+      "actual": "XX.XX%",
+      "consensus": "XX.XX% (来源)",
+      "delta": "+/-XX bps",
+      "assessment": "YoY变化 XX bps, vs预期差异 XX bps"
+    },
+    {
+      "metric": "EPS (Diluted)",
+      "actual": "$X.XX",
+      "consensus": "$X.XX (来源)",
+      "delta": "+XX.XX%",
+      "assessment": "YoY +XX.XX%, vs预期差异 +XX.XX%"
+    },
+    {
+      "metric": "Net Income",
+      "actual": "$XX.XXB",
+      "consensus": "$XX.XXB (来源)",
+      "delta": "+XX.XX%",
+      "assessment": "YoY +XX.XX%, vs预期差异 +XX.XX%"
+    },
+    {
+      "metric": "下季指引",
+      "actual": "管理层给出的指引范围",
+      "consensus": "研报预期值 (来源)",
+      "delta": "差异百分比",
+      "assessment": "指引 vs 预期的差异说明"
+    }
   ],
 
-  "results_explanation": "实际数据与预期差异的客观解释，引用管理层表述",
+  "results_explanation": "各项差异的客观解释（引用管理层表述和研报分析师假设的差异）",
 
-  "drivers_summary": "驱动因素数据汇总",
+  "drivers_summary": "三大驱动的实际表现 vs 研报预期的对比总结",
 
   "drivers": {
     "demand": {
       "title": "A. 需求/量",
-      "metrics": "与需求相关的核心指标",
-      "change": "客观变化描述（含数值）",
+      "metrics": "核心需求指标",
+      "change": "实际变化 vs 研报预期（含具体数值）",
       "magnitude": "+XX.XX% YoY",
-      "reason": "原因"
+      "reason": "差异的原因"
     },
     "monetization": {
       "title": "B. 变现/单价",
-      "metrics": "与变现相关的核心指标",
-      "change": "客观变化描述（含数值）",
+      "metrics": "核心变现指标",
+      "change": "实际变化 vs 研报预期",
       "magnitude": "+XX.XX%",
-      "reason": "原因"
+      "reason": "差异原因"
     },
     "efficiency": {
       "title": "C. 内部效率",
-      "metrics": "与效率相关的核心指标",
-      "change": "客观变化描述（含数值）",
+      "metrics": "核心效率指标",
+      "change": "实际变化 vs 研报预期",
       "magnitude": "+XX.XX%",
-      "reason": "原因"
+      "reason": "差异原因"
     }
   },
 
   "investment_roi": {
-    "capex_change": "本期CapEx客观数据及变化",
-    "opex_change": "Opex客观数据及变化",
-    "investment_direction": "管理层表述的投入方向",
-    "roi_evidence": ["ROI数据1（量化）", "ROI数据2（量化）"],
-    "management_commitment": "管理层财务承诺原话"
+    "capex_change": "本期CapEx数据，研报预期值，差异",
+    "opex_change": "Opex数据，研报预期值，差异",
+    "investment_direction": "管理层投入方向 vs 研报假设",
+    "roi_evidence": ["已验证的ROI数据1", "ROI数据2"],
+    "management_commitment": "管理层承诺（研报是否预见到这些承诺）"
   },
 
   "sustainability_risks": {
-    "sustainable_drivers": ["可持续因素1（数据支撑）", "因素2", "因素3"],
-    "main_risks": ["风险因素1（含时间窗口）", "风险因素2", "风险因素3"],
-    "checkpoints": ["下季关注指标1", "指标2", "指标3"]
+    "sustainable_drivers": ["可持续因素1", "因素2", "因素3"],
+    "main_risks": ["风险因素1（含时间窗口）", "风险因素2"],
+    "checkpoints": ["下季需验证的指标1", "指标2"]
   },
 
   "comparison_snapshot": {
     "core_revenue": "$XX.XXB (YoY +XX.XX%, vs预期差异 +XX.XX%)",
     "core_profit": "$XX.XXB (YoY +XX.XX%)",
-    "guidance": "管理层指引 vs 研报预期",
-    "core_driver_quantified": "核心驱动量化",
-    "main_risk_quantified": "主要风险量化"
+    "guidance": "管理层指引 vs 研报预期的差异",
+    "core_driver_quantified": "实际核心驱动 vs 研报假设的差异",
+    "main_risk_quantified": "实际风险 vs 研报关注点的差异"
   },
 
   "research_comparison": {
     "consensus_source": "研报来源机构名称",
     "key_differences": [
-      "Revenue实际$XX.XXB vs 预期$XX.XXB，差异+XX.XX%",
-      "EPS实际$X.XX vs 预期$X.XX，差异+XX.XX%",
-      "其他重要差异项..."
+      "Revenue：实际$XX.XXB vs 预期$XX.XXB，差异+XX.XX%，原因：...",
+      "EPS：实际$X.XX vs 预期$X.XX，差异+XX.XX%，原因：...",
+      "Margin：实际XX.XX% vs 预期XX.XX%，差异XX bps，原因：...",
+      "指引：管理层指引$XX-XXB vs 研报预期$XXB，差异+XX.XX%"
     ],
-    "analyst_blind_spots": "研报中未覆盖但财报中出现的重要数据点"
+    "analyst_blind_spots": "研报中未预见到但实际发生的重要变化（分条列出）"
   }
 }
 
 【关键规则】
-1. 对比数据必须标注来源机构名称
-2. delta字段展示vs预期的百分比差异
+1. 所有对比数据必须标注来源机构名称
+2. delta字段展示vs预期的百分比差异，附计算过程
 3. 严禁使用beat/miss/inline/超预期/不及预期等评价词
-4. assessment字段只写：YoY变化 + vs预期差异百分比
-5. 所有对比必须客观，只展示数据差异和变化方向
-6. 所有金额$XX.XXB格式，百分比XX.XX%格式
-7. 所有输出内容不要使用大括号{}作为占位符，直接填入具体内容`
+4. 严禁给出投资建议（超配/低配/标配/买入/卖出）
+5. assessment字段只写客观数据：YoY变化 + vs预期差异百分比
+6. key_differences中每条必须包含：实际值、预期值、差异百分比、差异原因
+7. 所有输出使用中文（数值保留英文格式$XX.XXB）
+8. 所有输出内容不要使用大括号{}作为占位符，直接填入具体内容`
 
 // ============================================================
 // 分析函数 - 处理PDF/文本格式的财报

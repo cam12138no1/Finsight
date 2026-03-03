@@ -160,6 +160,9 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
   const [modalTranscriptContent, setModalTranscriptContent] = useState<string | null>(null)
   const [isLoadingModal, setIsLoadingModal] = useState(false)
 
+  // View tab: 'financial' (DB data) or 'comparison' (research comparison)
+  const [viewTab, setViewTab] = useState<'financial' | 'comparison'>('financial')
+
   // Research report upload state
   const [showResearchUpload, setShowResearchUpload] = useState(false)
   const [researchFiles, setResearchFiles] = useState<FileItem[]>([])
@@ -354,6 +357,7 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
     setSelectedAnalysis(userAnalysisByPeriod.get(periodLabel) || null)
     setFullAnalysis(null)
     setShowResearchUpload(false)
+    setViewTab('financial')
     setModalConclusion(null)
     setModalTranscriptContent(null)
   }
@@ -423,6 +427,7 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
         setResearchFiles([])
         setUploadStatus('idle')
         setShowResearchUpload(false)
+        setViewTab('comparison')
         isSubmittingRef.current = false
         loadData()
       }, 1500)
@@ -433,6 +438,31 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
       toast({ title: '分析失败', description: msg, variant: 'destructive' })
       isSubmittingRef.current = false
     }
+  }
+
+  const handleDeleteComparison = async () => {
+    if (!selectedUserAnalysis?.id) return
+    try {
+      const res = await fetch(`/api/upload-research?id=${encodeURIComponent(selectedUserAnalysis.id)}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: '删除失败' }))
+        throw new Error(data.error)
+      }
+      toast({ title: '已删除', description: '对比分析结果已删除' })
+      setViewTab('financial')
+      loadData()
+    } catch (err: any) {
+      toast({ title: '删除失败', description: err.message || '请重试', variant: 'destructive' })
+    }
+  }
+
+  const handleRegenerateComparison = async () => {
+    if (selectedUserAnalysis?.id) {
+      await fetch(`/api/upload-research?id=${encodeURIComponent(selectedUserAnalysis.id)}`, { method: 'DELETE' }).catch(() => {})
+      loadData()
+    }
+    setViewTab('financial')
+    setShowResearchUpload(true)
   }
 
   const isProcessing = uploadStatus === 'uploading' || uploadStatus === 'analyzing'
@@ -557,9 +587,31 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
         <div className="flex-1 min-w-0">
           {selectedPeriod ? (
             <>
-              {/* Period Header + Actions */}
+              {/* Period Header + Tabs + Actions */}
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-bold text-slate-800">{formatPeriodLabel(selectedPeriod, symbol)} 财报数据</h2>
+                <div className="flex items-center gap-4">
+                  <h2 className="text-lg font-bold text-slate-800">{formatPeriodLabel(selectedPeriod, symbol)} 财报数据</h2>
+                  {hasFinancialData && selectedUserAnalysis && displayAnalysis && (
+                    <div className="flex bg-slate-100 rounded-lg p-0.5">
+                      <button
+                        onClick={() => setViewTab('financial')}
+                        className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                          viewTab === 'financial' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                        }`}
+                      >
+                        财报数据
+                      </button>
+                      <button
+                        onClick={() => setViewTab('comparison')}
+                        className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                          viewTab === 'comparison' ? 'bg-white text-purple-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                        }`}
+                      >
+                        研报对比
+                      </button>
+                    </div>
+                  )}
+                </div>
                 <div className="flex gap-2">
                   {hasFinancialData && (
                     <Button
@@ -653,24 +705,46 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
                 </div>
               )}
 
-              {/* Analysis Content */}
-              {hasFinancialData && displayAnalysis && (
-                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
-                  {isLoadingFull && selectedUserAnalysis ? (
-                    <div className="flex items-center justify-center py-20">
-                      <Loader2 className="h-8 w-8 text-blue-500 animate-spin" />
-                    </div>
-                  ) : (
-                    <AnalysisView
-                      analysis={displayAnalysis}
-                      hasResearchReport={hasResearchReport}
-                    />
-                  )}
+              {/* Analysis Content (comparison tab) */}
+              {hasFinancialData && displayAnalysis && viewTab === 'comparison' && (
+                <div className="space-y-4">
+                  <div className="flex gap-2 justify-end">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleDeleteComparison}
+                      className="text-red-600 border-red-200 hover:bg-red-50"
+                    >
+                      <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                      删除对比结果
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleRegenerateComparison}
+                      className="text-purple-600 border-purple-200 hover:bg-purple-50"
+                    >
+                      <Upload className="mr-1.5 h-3.5 w-3.5" />
+                      重新生成
+                    </Button>
+                  </div>
+                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
+                    {isLoadingFull && selectedUserAnalysis ? (
+                      <div className="flex items-center justify-center py-20">
+                        <Loader2 className="h-8 w-8 text-blue-500 animate-spin" />
+                      </div>
+                    ) : (
+                      <AnalysisView
+                        analysis={displayAnalysis}
+                        hasResearchReport={hasResearchReport}
+                      />
+                    )}
+                  </div>
                 </div>
               )}
 
-              {/* Quarterly: DB has data → show full metrics */}
-              {!isAnnualView && hasFinancialData && !displayAnalysis && selectedDbQuarter && (
+              {/* Quarterly: DB has data → show full metrics (financial tab or no comparison available) */}
+              {!isAnnualView && hasFinancialData && selectedDbQuarter && (viewTab === 'financial' || !displayAnalysis) && (
                 <DbQuarterDetailView quarter={selectedDbQuarter} allQuarters={dbQuarters} period={selectedPeriod || ''} />
               )}
 
