@@ -7,6 +7,7 @@ import {
   AI_APPLICATION_COMPANIES,
   AI_SUPPLY_CHAIN_COMPANIES,
   CONSUMER_GOODS_COMPANIES,
+  SEMI_ANNUAL_SYMBOLS,
   type CompanyCategory,
   type Company,
 } from '@/lib/companies'
@@ -69,6 +70,21 @@ function getCompaniesForCategory(category: CompanyCategory): Company[] {
   }
 }
 
+/**
+ * Format period label: semi-annual companies show H1/H2, others show Q1-Q4.
+ * API stores Q2=H1, Q4=H2 for semi-annual reporters.
+ */
+function formatPeriodLabel(period: string, symbol: string): string {
+  if (!SEMI_ANNUAL_SYMBOLS.has(symbol)) return period
+  const match = period.match(/(\d{4}) Q(\d)/)
+  if (!match) return period
+  const year = match[1]
+  const q = parseInt(match[2])
+  if (q === 2) return `${year} H1`
+  if (q === 4) return `${year} H2`
+  return period
+}
+
 function MetricDelta({ value, label }: { value: string | undefined; label?: string }) {
   if (!value) return null
   const isPositive = value.startsWith('+')
@@ -94,6 +110,7 @@ function generateObjectiveSummary(q: QuarterData, companyName: string): string {
 
   if (q.metrics.revenue) {
     let revSentence = `${companyName} ${q.period} 营收 ${q.metrics.revenue}`
+    // Period label already set, summary uses raw period
     if (q.metrics.revenueYoY) revSentence += `，同比变化 ${q.metrics.revenueYoY}`
     parts.push(revSentence + '。')
   }
@@ -299,7 +316,7 @@ export default function DashboardClient() {
                     >
                       <div className="flex items-center">
                         <span className={`text-sm font-semibold ${idx === 0 ? 'text-blue-700' : 'text-slate-600'}`}>
-                          {q.period}
+                          {formatPeriodLabel(q.period, company.symbol)}
                         </span>
                       </div>
 

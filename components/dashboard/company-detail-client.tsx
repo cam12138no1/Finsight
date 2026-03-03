@@ -8,7 +8,7 @@ import {
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { toast } from '@/components/ui/toaster'
-import { getCompanyBySymbol, getCompanyCategoryBySymbol } from '@/lib/companies'
+import { getCompanyBySymbol, getCompanyCategoryBySymbol, SEMI_ANNUAL_SYMBOLS } from '@/lib/companies'
 import AnalysisView from './analysis-view-objective'
 
 interface Analysis {
@@ -87,6 +87,16 @@ const MAX_FILE_SIZE = 50 * 1024 * 1024
 
 type ViewMode = 'quarterly' | 'annual'
 
+function formatPeriodLabel(period: string, sym: string): string {
+  if (!SEMI_ANNUAL_SYMBOLS.has(sym)) return period
+  const m = period.match(/(\d{4}) Q(\d)/)
+  if (!m) return period
+  const q = parseInt(m[2])
+  if (q === 2) return `${m[1]} H1`
+  if (q === 4) return `${m[1]} H2`
+  return period
+}
+
 function generatePast3YearsQuarters(): { year: number; quarter: number; label: string }[] {
   const now = new Date()
   const currentYear = now.getFullYear()
@@ -158,7 +168,10 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
   const [uploadProgress, setUploadProgress] = useState('')
   const isSubmittingRef = useRef(false)
 
-  const allQuarterPeriods = generatePast3YearsQuarters()
+  const isSemiAnnual = SEMI_ANNUAL_SYMBOLS.has(symbol)
+  const allQuarterPeriods = isSemiAnnual
+    ? generatePast3YearsQuarters().filter(p => p.quarter === 2 || p.quarter === 4)
+    : generatePast3YearsQuarters()
   const allAnnualPeriods = generatePast3Years()
 
   const loadData = useCallback(async () => {
@@ -496,7 +509,7 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
                 viewMode === 'quarterly' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
               }`}
             >
-              季度
+              {isSemiAnnual ? '半年报' : '季度'}
             </button>
             <button
               onClick={() => { setViewMode('annual'); setSelectedPeriod(null) }}
@@ -509,7 +522,7 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
           </div>
 
           <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 px-2">
-            {viewMode === 'quarterly' ? '季度选择' : '年度选择'}
+            {viewMode === 'quarterly' ? (isSemiAnnual ? '半年报选择' : '季度选择') : '年度选择'}
           </h3>
           <div className="space-y-1 max-h-[calc(100vh-260px)] overflow-y-auto pr-1">
             {viewMode === 'quarterly' ? (
@@ -534,7 +547,7 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
                         : 'text-slate-400 hover:bg-slate-100 hover:text-slate-600'
                     }`}
                   >
-                    <span>{key}</span>
+                    <span>{formatPeriodLabel(key, symbol)}</span>
                     <span className="flex items-center gap-1">
                       {isProcessingPeriod && <Loader2 className="h-3 w-3 animate-spin" />}
                       {hasData && !isSelected && <span className="h-2 w-2 rounded-full bg-green-400 flex-shrink-0" />}
@@ -576,7 +589,7 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
             <>
               {/* Period Header + Actions */}
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-bold text-slate-800">{selectedPeriod} 财报数据</h2>
+                <h2 className="text-lg font-bold text-slate-800">{formatPeriodLabel(selectedPeriod, symbol)} 财报数据</h2>
                 <div className="flex gap-2">
                   {hasFinancialData && (
                     <Button
@@ -911,7 +924,7 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
                     {selectedPeriod} 暂无财报数据
                   </h3>
                   <p className="text-sm text-slate-500">
-                    财报数据由系统每日自动获取，该{isAnnualView ? '年度' : '季度'}暂未收录
+                    财报数据由系统每日自动获取，该{isAnnualView ? '年度' : isSemiAnnual ? '半年度' : '季度'}暂未收录
                   </p>
                 </div>
               )}

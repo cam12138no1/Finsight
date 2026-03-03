@@ -4,6 +4,7 @@ export interface Company {
   symbol: string
   name: string
   nameZh: string
+  reportingFrequency?: 'quarterly' | 'semi-annual'
 }
 
 export type CompanyCategory = 'AI_APPLICATION' | 'AI_SUPPLY_CHAIN' | 'CONSUMER_GOODS'
@@ -39,12 +40,14 @@ export const AI_SUPPLY_CHAIN_COMPANIES: Company[] = [
 ]
 
 export const CONSUMER_GOODS_COMPANIES: Company[] = [
-  { symbol: 'RMS.PA', name: 'Hermès', nameZh: '爱马仕' },
+  { symbol: 'RMS.PA', name: 'Hermès', nameZh: '爱马仕', reportingFrequency: 'semi-annual' },
   { symbol: '600519.SS', name: 'Kweichow Moutai', nameZh: '贵州茅台' },
   { symbol: 'CROX', name: 'Crocs', nameZh: 'Crocs' },
   { symbol: 'RL', name: 'Ralph Lauren', nameZh: 'Ralph Lauren' },
-  { symbol: 'MC.PA', name: 'LVMH', nameZh: '路威酩轩' },
+  { symbol: 'MC.PA', name: 'LVMH', nameZh: '路威酩轩', reportingFrequency: 'semi-annual' },
 ]
+
+export const SEMI_ANNUAL_SYMBOLS = new Set(['RMS.PA', 'MC.PA'])
 
 export const CATEGORY_CONFIG: Record<CompanyCategory, {
   name: string
