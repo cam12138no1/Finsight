@@ -57,34 +57,9 @@ export async function POST(request: NextRequest) {
           model: 'openai/gpt-4o',
           messages: [
             { role: 'system', content: EXTRACTION_PROMPT },
-            { role: 'user', content: `公司: ${t.symbol}\n季度: ${t.fiscal_year} Q${t.fiscal_quarter}\n日期: ${t.transcript_date}\n\n=== Transcript ===\n${truncated}` },
+            { role: 'user', content: `公司: ${t.symbol}\n季度: ${t.fiscal_year} Q${t.fiscal_quarter}\n日期: ${t.transcript_date}\n\n=== Transcript ===\n${truncated}\n\n请输出JSON数组，格式：{"conclusions": [...]}` },
           ],
-          response_format: {
-            type: 'json_schema',
-            json_schema: {
-              name: 'transcript_conclusions',
-              strict: true,
-              schema: {
-                type: 'object',
-                properties: {
-                  conclusions: {
-                    type: 'array',
-                    items: {
-                      type: 'object',
-                      properties: {
-                        summary: { type: 'string' },
-                        speaker: { type: 'string' },
-                        category: { type: 'string' },
-                        original_quote: { type: 'string' },
-                      },
-                      required: ['summary', 'speaker', 'category', 'original_quote'],
-                    },
-                  },
-                },
-                required: ['conclusions'],
-              },
-            },
-          },
+          response_format: { type: 'json_object' },
           temperature: 0.2,
           max_tokens: 4000,
         })
