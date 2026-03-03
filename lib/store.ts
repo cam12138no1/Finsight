@@ -154,6 +154,8 @@ class AnalysisStore {
         await put(blobPath, JSON.stringify(storedAnalysis), {
           access: 'private',
           contentType: 'application/json',
+          addRandomSuffix: false,
+          allowOverwrite: true,
         })
         
         console.log(`[Store] Added: user=${userId}, request=${requestId}`)
@@ -306,8 +308,10 @@ class AnalysisStore {
       const blobPath = this.getUserPath(userId, requestId)
       
       await put(blobPath, JSON.stringify(updated), {
-        access: 'public',
+        access: 'private',
         contentType: 'application/json',
+        addRandomSuffix: false,
+        allowOverwrite: true,
       })
       
       console.log(`[Store] Updated: user=${userId}, id=${id}`)
