@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateSession } from '@/lib/session-validator'
 import { extractTextFromDocument } from '@/lib/document-parser'
-import { analyzeFinancialReport } from '@/lib/ai/analyzer'
+import { analyzeFinancialReport, analyzeJsonFinancialData } from '@/lib/ai/analyzer'
 import { extractMetadataFromReport } from '@/lib/ai/extractor'
 import { analysisStore } from '@/lib/store'
 import { checkRateLimit, createRateLimitHeaders } from '@/lib/ratelimit'
@@ -274,18 +274,20 @@ export async function POST(request: NextRequest) {
 
     // ★★★ 11. AI分析 ★★★
     console.log(`[分析API] [${sessionId}] 开始AI分析...`)
-    const analysisResult = await analyzeFinancialReport(
-      financialText,
-      {
-        company: metadata.company_name,
-        symbol: metadata.company_symbol,
-        period: period,
-        fiscalYear: finalFiscalYear,
-        fiscalQuarter: finalFiscalQuarter,
-        category: category,
-      },
-      researchText || undefined
-    )
+    const analyzerMetadata = {
+      company: metadata.company_name,
+      symbol: metadata.company_symbol,
+      period: period,
+      fiscalYear: finalFiscalYear,
+      fiscalQuarter: finalFiscalQuarter,
+      category: category,
+    }
+
+    // Use JSON analyzer when financial data comes from DB (structured JSON),
+    // use PDF analyzer when financial data comes from uploaded files (raw text)
+    const analysisResult = useDbFinancialData
+      ? await analyzeJsonFinancialData(financialText, analyzerMetadata, researchText || undefined)
+      : await analyzeFinancialReport(financialText, analyzerMetadata, researchText || undefined)
     console.log(`[分析API] [${sessionId}] AI分析完成`)
 
     // ★★★ 12. 更新记录（使用验证过的userId） ★★★

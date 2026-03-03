@@ -5,24 +5,21 @@
 
 ---
 
-## 一、需要提供的 API 列表
+## 一、API 概要
 
-| 优先级 | API | 路径 | 作用 |
-|--------|-----|------|------|
-| **P0** | API 1 | `GET /api/financials/{symbol}` | 获取某公司所有季度的核心财务指标 |
-| **P0** | API 3 | `GET /api/reports/{symbol}/{year}/Q{quarter}` | 获取某季度的财报原文（纯文本） |
-| P1 | API 2 | `GET /api/financials/category/{category}` | 批量获取某类别下所有公司数据 |
-| P2 | API 4 | `GET /api/reports/{symbol}/{year}/Q{quarter}/download` | 获取财报 PDF 下载链接（可选） |
+| API | 路径 | 作用 |
+|-----|------|------|
+| **财报数据** | `GET /api/v1/reports/companies/{ticker}/reports?limit=8` | 获取某公司最近 N 个季度的财务数据（JSON） |
 
-> **P0 是必须的**，没有 API 1 和 API 3，系统无法运行。
+> 目前只需要这一个接口。系统会对每家公司调用一次，拿到 `financial_metrics` JSON 后自动完成格式化、YoY 同比计算、存储入库。
 
 ---
 
 ## 二、需要覆盖的公司（共 29 家）
 
-### AI 应用公司 (`AI_APPLICATION`)
+### AI 应用公司
 
-| Symbol | 公司 |
+| Ticker | 公司 |
 |--------|------|
 | `MSFT` | Microsoft |
 | `GOOGL` | Alphabet (Google) |
@@ -35,9 +32,9 @@
 | `APP` | AppLovin |
 | `ADBE` | Adobe |
 
-### AI 供应链公司 (`AI_SUPPLY_CHAIN`)
+### AI 供应链公司
 
-| Symbol | 公司 |
+| Ticker | 公司 |
 |--------|------|
 | `NVDA` | NVIDIA |
 | `AMD` | AMD |
@@ -54,9 +51,9 @@
 | `ASML` | ASML |
 | `SNPS` | Synopsys |
 
-### 消费品公司 (`CONSUMER_GOODS`)
+### 消费品公司
 
-| Symbol | 公司 |
+| Ticker | 公司 |
 |--------|------|
 | `RMS.PA` | Hermès（爱马仕） |
 | `600519.SS` | 贵州茅台 |
@@ -64,290 +61,192 @@
 | `RL` | Ralph Lauren |
 | `MC.PA` | LVMH（路威酩轩） |
 
-> **注意**：Symbol 必须和上表完全一致（包括 `.PA`、`.SS` 后缀），系统用 symbol 做主键匹配。
+> **Ticker 必须和上表完全一致**（包括 `.PA`、`.SS` 后缀），系统用 ticker 做主键匹配。
 
 ---
 
 ## 三、API 详细规范
 
-### API 1：获取单个公司的季度财务数据（P0）
+### 请求
 
 ```
-GET /api/financials/{symbol}
-```
-
-#### 请求示例
-
-```
-GET /api/financials/MSFT
-GET /api/financials/NVDA
-GET /api/financials/600519.SS
-GET /api/financials/RMS.PA
-```
-
-#### 完整响应示例
-
-```json
-{
-  "symbol": "NVDA",
-  "name": "NVIDIA",
-  "nameZh": "英伟达",
-  "category": "AI_SUPPLY_CHAIN",
-  "quarters": [
-    {
-      "fiscalYear": 2025,
-      "fiscalQuarter": 4,
-      "period": "2025 Q4",
-      "filingDate": "2025-02-26",
-      "reportAvailable": true,
-      "metrics": {
-        "revenue": "$39.33B",
-        "revenueYoY": "+78.00%",
-        "netIncome": "$22.09B",
-        "netIncomeYoY": "+80.25%",
-        "eps": "$0.89",
-        "epsYoY": "+71.15%",
-        "operatingMargin": "62.35%",
-        "grossMargin": "73.00%"
-      }
-    },
-    {
-      "fiscalYear": 2025,
-      "fiscalQuarter": 3,
-      "period": "2025 Q3",
-      "filingDate": "2024-11-20",
-      "reportAvailable": true,
-      "metrics": {
-        "revenue": "$35.08B",
-        "revenueYoY": "+93.61%",
-        "netIncome": "$19.31B",
-        "netIncomeYoY": "+108.91%",
-        "eps": "$0.78",
-        "epsYoY": "+101.28%",
-        "operatingMargin": "62.49%",
-        "grossMargin": "74.56%"
-      }
-    },
-    {
-      "fiscalYear": 2025,
-      "fiscalQuarter": 2,
-      "period": "2025 Q2",
-      "filingDate": "2024-08-28",
-      "reportAvailable": true,
-      "metrics": {
-        "revenue": "$30.04B",
-        "revenueYoY": "+122.40%",
-        "netIncome": "$16.60B",
-        "netIncomeYoY": "+168.00%",
-        "eps": "$0.67",
-        "epsYoY": "+151.85%",
-        "operatingMargin": "64.93%",
-        "grossMargin": "75.15%"
-      }
-    }
-  ],
-  "lastUpdated": "2025-03-01T06:00:00Z"
-}
-```
-
-#### 字段说明
-
-| 字段 | 类型 | 必须 | 说明 |
-|------|------|------|------|
-| `symbol` | string | ✅ | 股票代码，**必须与上表中的 Symbol 完全一致** |
-| `name` | string | ✅ | 公司英文名 |
-| `nameZh` | string | - | 公司中文名（没有可不传） |
-| `category` | string | - | `AI_APPLICATION` / `AI_SUPPLY_CHAIN` / `CONSUMER_GOODS` |
-| `quarters` | array | ✅ | 季度数据数组，**从新到旧排列**，建议返回最近 2-3 年的数据 |
-| `lastUpdated` | string | - | 数据最后更新时间，ISO 8601 格式 |
-
-**`quarters[]` 中每个季度的字段：**
-
-| 字段 | 类型 | 必须 | 说明 |
-|------|------|------|------|
-| `fiscalYear` | number | ✅ | 财年年份，如 `2025` |
-| `fiscalQuarter` | number | ✅ | 季度，`1`/`2`/`3`/`4` |
-| `period` | string | - | 格式化显示，如 `"2025 Q4"`（不传我们会自动生成） |
-| `filingDate` | string | - | 财报发布日期，`YYYY-MM-DD` |
-| `reportAvailable` | boolean | - | 该季度的财报原文是否可通过 API 3 获取 |
-| `metrics` | object | ✅ | 核心财务指标，见下表 |
-
-**`metrics` 对象字段：**
-
-| 字段 | 类型 | 必须 | 格式示例 | 说明 |
-|------|------|------|---------|------|
-| `revenue` | string | ✅ | `"$39.33B"` | 营收（十亿美元） |
-| `revenueYoY` | string | ✅ | `"+78.00%"` | 营收同比变化 |
-| `netIncome` | string | ✅ | `"$22.09B"` | 净利润 |
-| `netIncomeYoY` | string | ✅ | `"+80.25%"` | 净利润同比 |
-| `eps` | string | ✅ | `"$0.89"` | 每股收益 |
-| `epsYoY` | string | ✅ | `"+71.15%"` | EPS 同比 |
-| `operatingMargin` | string | - | `"62.35%"` | 营业利润率 |
-| `grossMargin` | string | - | `"73.00%"` | 毛利率 |
-
-#### 数值格式要求（重要）
-
-| 类型 | 格式 | 正确示例 | 错误示例 |
-|------|------|---------|---------|
-| 十亿美元金额 | `$XX.XXB` | `$39.33B`、`$2.10B` | `$39.3B`、`39.33`、`$39330M` |
-| 百万美元金额 | `$XX.XXM` | `$892.50M` | `892.5M` |
-| 百分比（正值） | `+XX.XX%` | `+78.00%`、`+2.74%` | `78%`、`+78.0%` |
-| 百分比（负值） | `-XX.XX%` | `-3.50%` | `-3.5%` |
-| 百分比（不变） | `0.00%` | `0.00%` | `0%` |
-| EPS | `$X.XX` | `$0.89`、`$3.23` | `$0.9`、`0.89` |
-| 数据缺失 | `null` 或 `""` | `null` | `"N/A"`、`"--"` |
-
-> **两位小数是强制要求**，前端和 AI 分析都依赖这个格式做解析。
-
-#### 错误处理
-
-| 情况 | 期望行为 |
-|------|---------|
-| 公司不存在 | 返回 404 |
-| 暂无数据 | 返回 200 + `{"symbol": "MSFT", "quarters": []}` |
-| 服务器错误 | 返回 500 |
-
----
-
-### API 3：获取某季度的财报原文（P0）
-
-```
-GET /api/reports/{symbol}/{year}/Q{quarter}
+GET /api/v1/reports/companies/{ticker}/reports?limit=8
 ```
 
 #### 请求示例
 
-```
-GET /api/reports/MSFT/2025/Q2
-GET /api/reports/NVDA/2025/Q4
-GET /api/reports/600519.SS/2024/Q3
-```
-
-#### 响应示例
-
-```json
-{
-  "symbol": "MSFT",
-  "fiscalYear": 2025,
-  "fiscalQuarter": 2,
-  "reportText": "UNITED STATES\nSECURITIES AND EXCHANGE COMMISSION\nWashington, D.C. 20549\n\nFORM 10-Q\n\nMICROSOFT CORPORATION\n\nFor the quarterly period ended December 31, 2024\n\nPART I - FINANCIAL INFORMATION\n\nItem 1. Financial Statements\n\nINCOME STATEMENTS\n(In millions, except per share amounts)(Unaudited)\n\n                              Three Months Ended\n                              December 31,\n                              2024        2023\nRevenue                       $69,632     $62,020\nCost of revenue               21,337      20,146\nGross margin                  48,295      41,874\nOperating income              31,650      27,032\n...\n(完整财报文本，通常 10-30 万字符)\n...",
-  "reportType": "10-Q",
-  "filingDate": "2025-01-28",
-  "pageCount": 78,
-  "characterCount": 245000
-}
+```bash
+curl -X 'GET' \
+  'http://3.12.197.98:8006/api/v1/reports/companies/GOOGL/reports?limit=8' \
+  -H 'accept: application/json'
 ```
 
-#### 字段说明
+#### 参数说明
 
-| 字段 | 类型 | 必须 | 说明 |
-|------|------|------|------|
-| `symbol` | string | - | 公司代码 |
-| `fiscalYear` | number | - | 财年 |
-| `fiscalQuarter` | number | - | 季度 |
-| `reportText` | string | **✅** | **最关键字段** — 财报全文纯文本 |
-| `reportType` | string | - | `"10-Q"`（季报）或 `"10-K"`（年报） |
-| `filingDate` | string | - | 发布日期 |
-| `pageCount` | number | - | 页数 |
-| `characterCount` | number | - | 字符数 |
+| 参数 | 位置 | 说明 |
+|------|------|------|
+| `ticker` | URL 路径 | 公司股票代码，如 `GOOGL`、`NVDA`、`600519.SS` |
+| `limit` | Query 参数 | 返回最近几个季度的数据，系统默认传 `8` |
 
-#### `reportText` 要求
+### 响应
 
-1. **必须是从财报 PDF 中提取的完整纯文本**（不是摘要，不是链接）
-2. 保留原始表格结构（用空格/tab 对齐），AI 需要读懂表格
-3. 包含关键部分：Income Statement、Balance Sheet、Cash Flow、Management Discussion (MD&A)
-4. **最大 300,000 字符**，超出部分系统会截断
-5. 编码：UTF-8
-
-#### 错误处理
-
-| 情况 | 期望行为 |
-|------|---------|
-| 该季度财报尚未发布 | 返回 **404** |
-| 财报已发布但原文提取未完成 | 返回 **404** 或 202 |
-| Symbol 不存在 | 返回 404 |
-
----
-
-### API 2：批量获取某类别所有公司数据（P1）
-
-```
-GET /api/financials/category/{category}
-```
-
-#### 请求示例
-
-```
-GET /api/financials/category/AI_APPLICATION
-GET /api/financials/category/AI_SUPPLY_CHAIN
-GET /api/financials/category/CONSUMER_GOODS
-```
-
-#### 响应
-
-返回数组，每个元素结构与 API 1 完全相同：
+返回一个**数组**，每个元素是一个季度的财报数据：
 
 ```json
 [
   {
-    "symbol": "MSFT",
-    "name": "Microsoft",
-    "quarters": [ ... ]
+    "id": "638947ed-060e-4436-9ae1-0b475a9944d4",
+    "company_id": "49e07101-6d4c-4337-8584-1d1b5237ff08",
+    "ticker": "GOOGL",
+    "fiscal_year": 2025,
+    "fiscal_quarter": 4,
+    "report_date": "2025-12-31",
+    "financial_metrics": {
+      "revenue": "113896000000",
+      "gross_profit": "68130000000",
+      "operating_income": "36002000000",
+      "net_income": "34455000000",
+      "eps": "2.85",
+      "eps_diluted": "0",
+      "total_assets": "595281000000",
+      "total_liabilities": "180016000000",
+      "total_equity": "415265000000",
+      "cash_and_equivalents": "30708000000",
+      "total_debt": "72035000000",
+      "operating_cash_flow": "52402000000",
+      "free_cash_flow": "24551000000"
+    },
+    "s3_url": null,
+    "created_at": "2026-03-02T19:29:51.465000"
   },
   {
-    "symbol": "GOOGL",
-    "name": "Alphabet",
-    "quarters": [ ... ]
+    "id": "...",
+    "ticker": "GOOGL",
+    "fiscal_year": 2025,
+    "fiscal_quarter": 3,
+    "report_date": "2025-09-30",
+    "financial_metrics": {
+      "revenue": "88268000000",
+      "gross_profit": "52348000000",
+      "operating_income": "28521000000",
+      "net_income": "26301000000",
+      "eps": "2.12",
+      "eps_diluted": "0",
+      "total_assets": "...",
+      "total_liabilities": "...",
+      "total_equity": "...",
+      "cash_and_equivalents": "...",
+      "total_debt": "...",
+      "operating_cash_flow": "...",
+      "free_cash_flow": "..."
+    },
+    "s3_url": null,
+    "created_at": "..."
   }
 ]
 ```
 
-> 如果没有这个接口，系统会对每家公司逐个调用 API 1（29 次），功能不受影响，只是效率低一些。
+### 字段说明
+
+#### 外层字段
+
+| 字段 | 类型 | 必须 | 说明 |
+|------|------|------|------|
+| `id` | string | - | 记录唯一 ID |
+| `company_id` | string | - | 公司 ID |
+| `ticker` | string | ✅ | 股票代码，**必须与上表一致** |
+| `fiscal_year` | number | ✅ | 财年，如 `2025` |
+| `fiscal_quarter` | number | ✅ | 季度，`1`/`2`/`3`/`4` |
+| `report_date` | string | ✅ | 财报截止日期，`YYYY-MM-DD` |
+| `financial_metrics` | object | ✅ | 核心财务指标，见下表 |
+| `s3_url` | string/null | - | 财报 PDF 的 S3 链接（有则存，null 也没关系） |
+| `created_at` | string | - | 数据入库时间 |
+
+#### `financial_metrics` 字段
+
+| 字段 | 类型 | 必须 | 说明 | 示例 |
+|------|------|------|------|------|
+| `revenue` | string | ✅ | 营收（美元，原始数值） | `"113896000000"` |
+| `gross_profit` | string | ✅ | 毛利润 | `"68130000000"` |
+| `operating_income` | string | ✅ | 营业利润 | `"36002000000"` |
+| `net_income` | string | ✅ | 净利润 | `"34455000000"` |
+| `eps` | string | ✅ | 每股收益 | `"2.85"` |
+| `eps_diluted` | string | - | 稀释每股收益 | `"2.81"` |
+| `total_assets` | string | - | 总资产 | `"595281000000"` |
+| `total_liabilities` | string | - | 总负债 | `"180016000000"` |
+| `total_equity` | string | - | 股东权益 | `"415265000000"` |
+| `cash_and_equivalents` | string | - | 现金及等价物 | `"30708000000"` |
+| `total_debt` | string | - | 总债务 | `"72035000000"` |
+| `operating_cash_flow` | string | - | 经营性现金流 | `"52402000000"` |
+| `free_cash_flow` | string | - | 自由现金流 | `"24551000000"` |
+
+#### 数值格式要求
+
+- **所有金额都是原始数值字符串**（单位：美元），如 `"113896000000"` 表示 $113.896B
+- **EPS 是每股金额**，如 `"2.85"` 表示 $2.85
+- 缺失数据传 `"0"` 或 `null`
+- **不需要做格式化**（如 `$XX.XXB`），系统会自动转换
+- **不需要算同比 YoY**，系统从相邻季度自动计算
+
+### 错误处理
+
+| 情况 | 期望行为 |
+|------|---------|
+| Ticker 不存在 | 返回 404 或空数组 `[]` |
+| 暂无数据 | 返回 `[]` |
+| 服务器错误 | 返回 500 |
 
 ---
 
-### API 4：获取财报 PDF 下载链接（P2，可选）
+## 四、系统如何处理数据
+
+你的 API 返回原始数据后，我们系统自动完成以下处理：
 
 ```
-GET /api/reports/{symbol}/{year}/Q{quarter}/download
+你的 API 返回                     系统自动处理                     前端展示
+─────────────                    ─────────────                   ─────────
+"revenue": "113896000000"   →    $113.90B                   →   Revenue $113.90B
+"net_income": "34455000000" →    $34.46B                    →   Net Income $34.46B
+"eps": "2.85"               →    $2.85                      →   EPS $2.85
+                            →    YoY: +12.27% (自动计算)    →   +12.27% YoY
+                            →    营业利润率: 31.61% (自动算) →   Operating Margin 31.61%
 ```
-
-#### 响应
-
-```json
-{
-  "downloadUrl": "https://s3.amazonaws.com/bucket/reports/MSFT_2025_Q2.pdf",
-  "fileName": "MSFT_10Q_2025Q2.pdf",
-  "fileSize": 5242880
-}
-```
-
-> 目前系统不使用此接口，未来可能用于 PDF 原文下载功能。**可以暂不实现。**
 
 ---
 
-## 四、调用频率与更新节奏
+## 五、调用频率
 
 | 项目 | 说明 |
 |------|------|
 | 调用频率 | **每天 1 次**（UTC 06:00，北京时间 14:00） |
-| 每次请求数 | 最多 29 次 API 1 + 最多约 100 次 API 3 |
-| 数据更新 | 财报季密集期（1/4/7/10 月）会有新数据，平时大多返回缓存 |
-| 超时 | 单次请求超时 30 秒，超时后跳过该公司继续下一个 |
-| 重试 | 系统不自动重试，下次 cron 会再试 |
+| 每次请求数 | 29 次（每家公司调用一次） |
+| 单次超时 | 30 秒 |
+| 重试策略 | 不重试，下次 cron 再跑 |
 
-## 五、联调测试
+---
 
-API 部署好后，请提供根地址（如 `https://your-api.example.com`），我们会配置到系统中。
+## 六、联调
 
-可以先实现 1-2 家公司（如 `MSFT`、`NVDA`）用于联调测试，确认格式无误后再扩展到全部 29 家。
+API 地址已确认：`http://3.12.197.98:8006`
 
-**快速验证命令：**
-
+验证命令：
 ```bash
-# 测试 API 1
-curl https://your-api.example.com/api/financials/MSFT
+# 测试单个公司
+curl -X 'GET' \
+  'http://3.12.197.98:8006/api/v1/reports/companies/GOOGL/reports?limit=8' \
+  -H 'accept: application/json'
 
-# 测试 API 3
-curl https://your-api.example.com/api/reports/MSFT/2025/Q2
+# 测试其他公司
+curl -X 'GET' \
+  'http://3.12.197.98:8006/api/v1/reports/companies/NVDA/reports?limit=8' \
+  -H 'accept: application/json'
+
+curl -X 'GET' \
+  'http://3.12.197.98:8006/api/v1/reports/companies/MSFT/reports?limit=8' \
+  -H 'accept: application/json'
 ```
+
+需要确认的事项：
+1. 上表 29 家公司的 ticker 是否都已录入？
+2. 非美股公司（如 `RMS.PA`、`600519.SS`、`SSNLF`）是否支持？
+3. `s3_url` 后续会提供吗？（目前 null 不影响核心功能）

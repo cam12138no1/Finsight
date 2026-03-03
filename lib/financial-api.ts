@@ -1,23 +1,23 @@
 // lib/financial-api.ts - Financial data API service layer
-// Fetches quarterly and annual financial reports from the data team's API
+// Adapts the data team's API response format to our internal data model
 
 import { Company, CompanyCategory, getAllCompanies, getCompanyCategoryBySymbol } from './companies'
 
 export interface QuarterlyMetrics {
-  revenue: string        // e.g. "$42.31B"
-  revenueYoY: string     // e.g. "+18.00%"
-  netIncome: string      // e.g. "$15.02B"
-  netIncomeYoY: string   // e.g. "+25.00%"
-  eps: string            // e.g. "$2.82"
-  epsYoY: string         // e.g. "+31.16%"
-  operatingMargin: string // e.g. "35.20%"
-  grossMargin: string    // e.g. "78.50%"
+  revenue: string
+  revenueYoY: string
+  netIncome: string
+  netIncomeYoY: string
+  eps: string
+  epsYoY: string
+  operatingMargin: string
+  grossMargin: string
 }
 
 export interface QuarterData {
   fiscalYear: number
   fiscalQuarter: number
-  period: string          // e.g. "2025 Q4"
+  period: string
   metrics: QuarterlyMetrics
   filingDate?: string
   reportAvailable: boolean
@@ -32,7 +32,6 @@ export interface CompanyFinancialData {
   lastUpdated: string
 }
 
-// Core metrics displayed on homepage table
 export interface CoreMetric {
   label: string
   key: keyof QuarterlyMetrics
@@ -44,25 +43,173 @@ export const CORE_METRICS: CoreMetric[] = [
   { label: 'EPS', key: 'eps' },
 ]
 
-// API base URL - will be provided by data team
 const FINANCIAL_API_BASE = process.env.FINANCIAL_API_BASE_URL || ''
 
+// ============================================================
+// Raw API response types (from colleague's API)
+// ============================================================
+
+interface RawQuarterReport {
+  id: string
+  company_id: string
+  ticker: string
+  fiscal_year: number
+  fiscal_quarter: number
+  report_date: string
+  financial_metrics: {
+    revenue: string
+    gross_profit: string
+    operating_income: string
+    net_income: string
+    eps: string
+    eps_diluted: string
+    total_assets: string
+    total_liabilities: string
+    total_equity: string
+    cash_and_equivalents: string
+    total_debt: string
+    operating_cash_flow: string
+    free_cash_flow: string
+  }
+  s3_url: string | null
+  created_at: string
+}
+
+// ============================================================
+// Number formatting helpers
+// ============================================================
+
+function formatDollarBillions(raw: string | number | null | undefined): string {
+  if (!raw) return ''
+  const num = typeof raw === 'string' ? parseFloat(raw) : raw
+  if (isNaN(num)) return ''
+  const billions = num / 1e9
+  if (Math.abs(billions) >= 1) {
+    return `$${billions.toFixed(2)}B`
+  }
+  const millions = num / 1e6
+  return `$${millions.toFixed(2)}M`
+}
+
+function formatEps(raw: string | number | null | undefined): string {
+  if (!raw) return ''
+  const num = typeof raw === 'string' ? parseFloat(raw) : raw
+  if (isNaN(num)) return ''
+  return `$${num.toFixed(2)}`
+}
+
+function formatPercent(value: number | null | undefined): string {
+  if (value === null || value === undefined || isNaN(value)) return ''
+  return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`
+}
+
+function calcYoY(current: string | null | undefined, previous: string | null | undefined): string {
+  if (!current || !previous) return ''
+  const cur = parseFloat(current)
+  const prev = parseFloat(previous)
+  if (isNaN(cur) || isNaN(prev) || prev === 0) return ''
+  const pct = ((cur - prev) / Math.abs(prev)) * 100
+  return formatPercent(pct)
+}
+
+function calcMargin(part: string | null | undefined, whole: string | null | undefined): string {
+  if (!part || !whole) return ''
+  const p = parseFloat(part)
+  const w = parseFloat(whole)
+  if (isNaN(p) || isNaN(w) || w === 0) return ''
+  return `${((p / w) * 100).toFixed(2)}%`
+}
+
+// ============================================================
+// Transform raw API response → our data model
+// ============================================================
+
+function transformRawReports(
+  rawReports: RawQuarterReport[],
+  companyName: string,
+  companyNameZh: string,
+  category: CompanyCategory
+): CompanyFinancialData {
+  const sorted = [...rawReports].sort((a, b) => {
+    if (b.fiscal_year !== a.fiscal_year) return b.fiscal_year - a.fiscal_year
+    return b.fiscal_quarter - a.fiscal_quarter
+  })
+
+  const quarters: QuarterData[] = sorted.map((report, idx) => {
+    const m = report.financial_metrics
+
+    // Find same quarter from previous year for YoY calculation
+    const prevYearReport = sorted.find(
+      r => r.fiscal_year === report.fiscal_year - 1 && r.fiscal_quarter === report.fiscal_quarter
+    )
+    const pm = prevYearReport?.financial_metrics
+
+    return {
+      fiscalYear: report.fiscal_year,
+      fiscalQuarter: report.fiscal_quarter,
+      period: `${report.fiscal_year} Q${report.fiscal_quarter}`,
+      filingDate: report.report_date,
+      reportAvailable: !!report.s3_url,
+      metrics: {
+        revenue: formatDollarBillions(m.revenue),
+        revenueYoY: calcYoY(m.revenue, pm?.revenue),
+        netIncome: formatDollarBillions(m.net_income),
+        netIncomeYoY: calcYoY(m.net_income, pm?.net_income),
+        eps: formatEps(m.eps),
+        epsYoY: calcYoY(m.eps, pm?.eps),
+        operatingMargin: calcMargin(m.operating_income, m.revenue),
+        grossMargin: calcMargin(m.gross_profit, m.revenue),
+      },
+    }
+  })
+
+  return {
+    symbol: rawReports[0]?.ticker || '',
+    name: companyName,
+    nameZh: companyNameZh,
+    category,
+    quarters,
+    lastUpdated: rawReports[0]?.created_at || new Date().toISOString(),
+  }
+}
+
+// ============================================================
+// API calls
+// ============================================================
+
 /**
- * Fetch financial data for a specific company
- * The data team's API provides quarterly and annual reports, updated daily
+ * Fetch financial data for a specific company from the data team's API
+ * Endpoint: GET /api/v1/reports/companies/{ticker}/reports?limit=8
  */
 export async function fetchCompanyFinancials(symbol: string): Promise<CompanyFinancialData | null> {
-  if (!FINANCIAL_API_BASE) {
-    // When API is not configured, return null (will use local data)
-    return null
-  }
+  if (!FINANCIAL_API_BASE) return null
 
   try {
-    const response = await fetch(`${FINANCIAL_API_BASE}/api/financials/${symbol}`, {
-      next: { revalidate: 86400 }, // Cache for 24 hours (daily update)
+    const url = `${FINANCIAL_API_BASE}/api/v1/reports/companies/${encodeURIComponent(symbol)}/reports?limit=8`
+    console.log(`[Financial API] Fetching: ${url}`)
+
+    const response = await fetch(url, {
+      headers: { 'accept': 'application/json' },
+      next: { revalidate: 86400 },
     })
-    if (!response.ok) return null
-    return await response.json()
+    if (!response.ok) {
+      console.log(`[Financial API] ${symbol}: HTTP ${response.status}`)
+      return null
+    }
+
+    const rawData: RawQuarterReport[] = await response.json()
+    if (!rawData || !Array.isArray(rawData) || rawData.length === 0) return null
+
+    const { getCompanyBySymbol } = await import('./companies')
+    const company = getCompanyBySymbol(symbol)
+    const category = getCompanyCategoryBySymbol(symbol) || 'AI_APPLICATION'
+
+    return transformRawReports(
+      rawData,
+      company?.name || symbol,
+      company?.nameZh || symbol,
+      category
+    )
   } catch (error) {
     console.error(`[Financial API] Failed to fetch ${symbol}:`, error)
     return null
@@ -71,40 +218,50 @@ export async function fetchCompanyFinancials(symbol: string): Promise<CompanyFin
 
 /**
  * Fetch financial data for all companies in a category
+ * Calls fetchCompanyFinancials for each company in the category
  */
 export async function fetchCategoryFinancials(category: CompanyCategory): Promise<CompanyFinancialData[]> {
-  if (!FINANCIAL_API_BASE) {
-    return []
+  if (!FINANCIAL_API_BASE) return []
+
+  const { getCompaniesByCategory } = await import('./companies')
+  const companies = getCompaniesByCategory(category)
+  const results: CompanyFinancialData[] = []
+
+  for (const company of companies) {
+    try {
+      const data = await fetchCompanyFinancials(company.symbol)
+      if (data) results.push(data)
+    } catch {
+      console.error(`[Financial API] Failed to fetch ${company.symbol} in category ${category}`)
+    }
   }
 
-  try {
-    const response = await fetch(`${FINANCIAL_API_BASE}/api/financials/category/${category}`, {
-      next: { revalidate: 86400 },
-    })
-    if (!response.ok) return []
-    return await response.json()
-  } catch (error) {
-    console.error(`[Financial API] Failed to fetch category ${category}:`, error)
-    return []
-  }
+  return results
 }
 
 /**
- * Fetch financial report content for a specific quarter
- * Returns the raw financial report text for AI analysis
+ * Fetch the raw financial metrics JSON for a specific quarter
+ * Used for AI analysis input
  */
 export async function fetchQuarterReport(symbol: string, year: number, quarter: number): Promise<string | null> {
-  if (!FINANCIAL_API_BASE) {
-    return null
-  }
+  if (!FINANCIAL_API_BASE) return null
 
   try {
-    const response = await fetch(`${FINANCIAL_API_BASE}/api/reports/${symbol}/${year}/Q${quarter}`, {
+    const url = `${FINANCIAL_API_BASE}/api/v1/reports/companies/${encodeURIComponent(symbol)}/reports?limit=12`
+    const response = await fetch(url, {
+      headers: { 'accept': 'application/json' },
       next: { revalidate: 86400 },
     })
     if (!response.ok) return null
-    const data = await response.json()
-    return data.reportText || null
+
+    const rawData: RawQuarterReport[] = await response.json()
+    if (!rawData || !Array.isArray(rawData)) return null
+
+    const target = rawData.find(r => r.fiscal_year === year && r.fiscal_quarter === quarter)
+    if (!target) return null
+
+    // Return the financial_metrics as structured text for AI to parse
+    return JSON.stringify(target.financial_metrics, null, 2)
   } catch (error) {
     console.error(`[Financial API] Failed to fetch report for ${symbol} ${year} Q${quarter}:`, error)
     return null
@@ -112,30 +269,32 @@ export async function fetchQuarterReport(symbol: string, year: number, quarter: 
 }
 
 /**
- * Fetch the S3 download link for a company's financial report
- * The data team's API returns AWS S3 download links for each report
+ * Fetch the S3 download link for a company's financial report PDF
  */
 export async function fetchReportDownloadUrl(symbol: string, year: number, quarter: number): Promise<string | null> {
-  if (!FINANCIAL_API_BASE) {
-    return null
-  }
+  if (!FINANCIAL_API_BASE) return null
 
   try {
-    const response = await fetch(`${FINANCIAL_API_BASE}/api/reports/${symbol}/${year}/Q${quarter}/download`, {
+    const url = `${FINANCIAL_API_BASE}/api/v1/reports/companies/${encodeURIComponent(symbol)}/reports?limit=12`
+    const response = await fetch(url, {
+      headers: { 'accept': 'application/json' },
       next: { revalidate: 86400 },
     })
     if (!response.ok) return null
-    const data = await response.json()
-    return data.downloadUrl || data.s3Url || null
+
+    const rawData: RawQuarterReport[] = await response.json()
+    if (!rawData || !Array.isArray(rawData)) return null
+
+    const target = rawData.find(r => r.fiscal_year === year && r.fiscal_quarter === quarter)
+    return target?.s3_url || null
   } catch (error) {
-    console.error(`[Financial API] Failed to fetch download URL for ${symbol} ${year} Q${quarter}:`, error)
+    console.error(`[Financial API] Failed to fetch download URL:`, error)
     return null
   }
 }
 
 /**
  * Download and extract text from an S3 report URL
- * Used when processing reports from the data team's API
  */
 export async function downloadAndExtractReport(s3Url: string): Promise<Buffer | null> {
   try {
@@ -182,7 +341,6 @@ export function buildCompanyDataFromAnalyses(
 
   for (const analysis of analyses) {
     if (!analysis.processed || analysis.error) continue
-
     const symbol = analysis.company_symbol
     if (!symbol) continue
 
@@ -199,17 +357,9 @@ export function buildCompanyDataFromAnalyses(
     }
 
     const company = companyMap.get(symbol)!
-
-    // Extract metrics from results table
     const metrics: QuarterlyMetrics = {
-      revenue: '',
-      revenueYoY: '',
-      netIncome: '',
-      netIncomeYoY: '',
-      eps: '',
-      epsYoY: '',
-      operatingMargin: '',
-      grossMargin: '',
+      revenue: '', revenueYoY: '', netIncome: '', netIncomeYoY: '',
+      eps: '', epsYoY: '', operatingMargin: '', grossMargin: '',
     }
 
     if (analysis.results_table) {
@@ -236,7 +386,6 @@ export function buildCompanyDataFromAnalyses(
       }
     }
 
-    // Use comparison_snapshot as fallback
     if (!metrics.revenue && analysis.comparison_snapshot?.core_revenue) {
       metrics.revenue = analysis.comparison_snapshot.core_revenue
     }
@@ -248,14 +397,12 @@ export function buildCompanyDataFromAnalyses(
     const fiscalQuarter = analysis.fiscal_quarter || parseInt(analysis.period?.match(/Q(\d)/)?.[1] || '0')
 
     if (fiscalYear && fiscalQuarter) {
-      // Avoid duplicate quarters
       const exists = company.quarters.some(
         q => q.fiscalYear === fiscalYear && q.fiscalQuarter === fiscalQuarter
       )
       if (!exists) {
         company.quarters.push({
-          fiscalYear,
-          fiscalQuarter,
+          fiscalYear, fiscalQuarter,
           period: `${fiscalYear} Q${fiscalQuarter}`,
           metrics,
           reportAvailable: true,
@@ -264,7 +411,6 @@ export function buildCompanyDataFromAnalyses(
     }
   }
 
-  // Sort quarters from newest to oldest within each company
   for (const company of companyMap.values()) {
     company.quarters.sort((a, b) => {
       if (b.fiscalYear !== a.fiscalYear) return b.fiscalYear - a.fiscalYear
