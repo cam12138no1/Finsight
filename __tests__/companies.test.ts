@@ -11,8 +11,8 @@ import {
 } from '@/lib/companies'
 
 describe('Company definitions', () => {
-  it('has exactly 29 companies total', () => {
-    expect(getAllCompanies()).toHaveLength(29)
+  it('has exactly 28 companies total', () => {
+    expect(getAllCompanies()).toHaveLength(28)
   })
 
   it('has 10 AI application companies', () => {
@@ -23,8 +23,8 @@ describe('Company definitions', () => {
     expect(AI_SUPPLY_CHAIN_COMPANIES).toHaveLength(14)
   })
 
-  it('has 5 consumer goods companies', () => {
-    expect(CONSUMER_GOODS_COMPANIES).toHaveLength(5)
+  it('has 4 consumer goods companies', () => {
+    expect(CONSUMER_GOODS_COMPANIES).toHaveLength(4)
   })
 
   it('all companies have symbol, name, nameZh', () => {
@@ -55,7 +55,6 @@ describe('getCompanyBySymbol', () => {
 
   it('finds companies with dots in symbol', () => {
     expect(getCompanyBySymbol('RMS.PA')).toBeDefined()
-    expect(getCompanyBySymbol('600519.SS')).toBeDefined()
     expect(getCompanyBySymbol('MC.PA')).toBeDefined()
   })
 
@@ -80,7 +79,6 @@ describe('getCompanyCategoryBySymbol', () => {
 
   it('identifies consumer goods companies', () => {
     expect(getCompanyCategoryBySymbol('RMS.PA')).toBe('CONSUMER_GOODS')
-    expect(getCompanyCategoryBySymbol('600519.SS')).toBe('CONSUMER_GOODS')
     expect(getCompanyCategoryBySymbol('CROX')).toBe('CONSUMER_GOODS')
     expect(getCompanyCategoryBySymbol('MC.PA')).toBe('CONSUMER_GOODS')
   })
@@ -94,7 +92,7 @@ describe('getCompaniesByCategory', () => {
   it('returns correct companies for each category', () => {
     expect(getCompaniesByCategory('AI_APPLICATION')).toHaveLength(10)
     expect(getCompaniesByCategory('AI_SUPPLY_CHAIN')).toHaveLength(14)
-    expect(getCompaniesByCategory('CONSUMER_GOODS')).toHaveLength(5)
+    expect(getCompaniesByCategory('CONSUMER_GOODS')).toHaveLength(4)
   })
 })
 
