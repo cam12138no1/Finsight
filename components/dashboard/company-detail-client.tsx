@@ -8,7 +8,6 @@ import {
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { toast } from '@/components/ui/toaster'
-// Server-side upload replaces @vercel/blob/client which has compatibility issues
 import { getCompanyBySymbol, getCompanyCategoryBySymbol } from '@/lib/companies'
 import AnalysisView from './analysis-view-objective'
 
@@ -84,13 +83,7 @@ interface FileItem {
   id: string
 }
 
-interface UploadedFile {
-  url: string
-  pathname: string
-  originalName: string
-}
-
-const MAX_FILE_SIZE = 500 * 1024 * 1024
+const MAX_FILE_SIZE = 50 * 1024 * 1024
 
 type ViewMode = 'quarterly' | 'annual'
 
@@ -368,80 +361,50 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
     if (validFiles.length > 0) setResearchFiles(prev => [...prev, ...validFiles])
   }
 
-  const uploadFileToServer = async (file: File): Promise<UploadedFile> => {
-    const formData = new FormData()
-    formData.append('file', file)
-
-    const res = await fetch('/api/upload-research', {
-      method: 'POST',
-      body: formData,
-    })
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
-      throw new Error(err.error || '上传失败')
-    }
-
-    const data = await res.json()
-    return { url: data.url, pathname: data.pathname, originalName: file.name }
-  }
-
-  // Upload research report → triggers comparison analysis with existing financial data
+  // Upload research report — single request handles everything server-side:
+  // upload PDF → extract text → fetch DB financial data → AI comparison → store result
   const handleResearchUpload = async () => {
     if (isSubmittingRef.current || researchFiles.length === 0 || !selectedPeriod) return
 
     isSubmittingRef.current = true
     setUploadStatus('uploading')
     setUploadError('')
-    setUploadProgress('步骤 1/4：准备上传研报...')
+    setUploadProgress('正在上传研报并提取文本...')
 
     try {
-      // Step 1: Upload to Blob
-      const uploadedResearch: UploadedFile[] = []
-      for (let i = 0; i < researchFiles.length; i++) {
-        setUploadProgress(`步骤 1/4：上传研报 ${i + 1}/${researchFiles.length}（${(researchFiles[i].file.size / 1024 / 1024).toFixed(1)}MB）`)
-        uploadedResearch.push(await uploadFileToServer(researchFiles[i].file))
-      }
-
-      // Step 2: Store to DB
-      setUploadProgress('步骤 2/4：研报已上传，正在读取数据库中的财报数据...')
-
       const match = selectedPeriod.match(/(\d{4}) Q(\d)/)
       const year = match ? parseInt(match[1]) : new Date().getFullYear()
       const quarter = match ? parseInt(match[2]) : 4
-
-      // Step 3: Send to AI for analysis
-      setUploadStatus('analyzing')
-      setUploadProgress('步骤 3/4：AI正在对比财报数据与研报内容（约1-3分钟）...')
-
       const requestId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-      const controller = new AbortController()
-      const analyzeTimeout = setTimeout(() => controller.abort(), 280000) // 4.5min timeout
 
-      const response = await fetch('/api/reports/analyze', {
+      // Single request — server handles everything
+      const formData = new FormData()
+      formData.append('file', researchFiles[0].file)
+      formData.append('symbol', symbol)
+      formData.append('category', category || 'AI_APPLICATION')
+      formData.append('fiscalYear', year.toString())
+      formData.append('fiscalQuarter', quarter.toString())
+      formData.append('requestId', requestId)
+
+      setUploadStatus('analyzing')
+      setUploadProgress(`上传研报 → 提取文本 → 对比分析中（约1-3分钟）...`)
+
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 290000)
+
+      const response = await fetch('/api/upload-research', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        body: formData,
         signal: controller.signal,
-        body: JSON.stringify({
-          financialFiles: [],
-          researchFiles: uploadedResearch,
-          category: category || 'AI_APPLICATION',
-          requestId,
-          fiscalYear: year,
-          fiscalQuarter: quarter,
-          useDbFinancialData: true,
-          companySymbol: symbol,
-        }),
       })
-      clearTimeout(analyzeTimeout)
+      clearTimeout(timeout)
 
       if (!response.ok) {
         const result = await response.json().catch(() => ({ error: `HTTP ${response.status}` }))
         throw new Error(result.error || '对比分析失败')
       }
 
-      // Step 4: Complete
-      setUploadProgress('步骤 4/4：分析完成，正在加载结果...')
+      setUploadProgress('分析完成，正在加载结果...')
       setUploadStatus('success')
       toast({ title: '对比分析完成', description: '研报与财报数据的客观对比已生成' })
 
@@ -454,7 +417,7 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
       }, 1500)
     } catch (error: any) {
       setUploadStatus('error')
-      const msg = error.name === 'AbortError' ? '分析超时，请稍后在列表中查看结果' : (error.message || '对比分析失败')
+      const msg = error.name === 'AbortError' ? '分析超时（5分钟），请稍后刷新查看结果' : (error.message || '对比分析失败')
       setUploadError(msg)
       toast({ title: '分析失败', description: msg, variant: 'destructive' })
       isSubmittingRef.current = false
