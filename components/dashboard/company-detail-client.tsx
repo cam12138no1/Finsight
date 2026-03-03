@@ -233,11 +233,18 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
   }
 
   // Determine what data is available for the selected period
-  const selectedDbQuarter = selectedPeriod ? dbQuarterByPeriod.get(selectedPeriod) : null
-  const selectedUserAnalysis = selectedPeriod ? userAnalysisByPeriod.get(selectedPeriod) : null
-  const hasFinancialData = !!selectedDbQuarter || !!selectedUserAnalysis
+  const isAnnualView = selectedPeriod?.startsWith('FY ')
+  const selectedFiscalYear = isAnnualView ? parseInt(selectedPeriod!.replace('FY ', '')) : null
 
-  // The analysis to display: user analysis (with research comparison) takes priority, then DB analysis_result
+  // For annual view: collect all quarters of that year
+  const annualDbQuarters = isAnnualView && selectedFiscalYear
+    ? dbQuarters.filter(dq => dq.fiscal_year === selectedFiscalYear)
+    : []
+
+  const selectedDbQuarter = isAnnualView ? null : (selectedPeriod ? dbQuarterByPeriod.get(selectedPeriod) : null)
+  const selectedUserAnalysis = isAnnualView ? null : (selectedPeriod ? userAnalysisByPeriod.get(selectedPeriod) : null)
+  const hasFinancialData = !!selectedDbQuarter || !!selectedUserAnalysis || annualDbQuarters.length > 0
+
   const displayAnalysis = selectedUserAnalysis
     ? fullAnalysis
     : selectedDbQuarter?.analysis_result
@@ -593,9 +600,84 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
                 </div>
               )}
 
-              {/* DB has data → show full metrics from API */}
-              {hasFinancialData && !displayAnalysis && selectedDbQuarter && (
+              {/* Quarterly: DB has data → show full metrics */}
+              {!isAnnualView && hasFinancialData && !displayAnalysis && selectedDbQuarter && (
                 <DbQuarterDetailView quarter={selectedDbQuarter} allQuarters={dbQuarters} period={selectedPeriod || ''} />
+              )}
+
+              {/* Annual: show all quarters of that year side-by-side */}
+              {isAnnualView && annualDbQuarters.length > 0 && (
+                <div className="space-y-6">
+                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+                    <h3 className="text-sm font-semibold text-blue-600 mb-4 flex items-center gap-2">
+                      <FileText className="h-4 w-4" />
+                      FY {selectedFiscalYear} 年度财报汇总
+                    </h3>
+                    <div className="overflow-x-auto rounded-xl border border-slate-200">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-slate-50">
+                            <th className="px-4 py-3 text-left font-semibold text-slate-600">指标</th>
+                            {annualDbQuarters
+                              .sort((a, b) => a.fiscal_quarter - b.fiscal_quarter)
+                              .map(q => (
+                                <th key={q.period} className="px-4 py-3 text-right font-semibold text-slate-600">
+                                  Q{q.fiscal_quarter}
+                                </th>
+                              ))
+                            }
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {[
+                            { label: 'Revenue（营收）', key: 'revenue' as const },
+                            { label: 'Net Income（净利润）', key: 'net_income' as const },
+                            { label: 'EPS（每股收益）', key: 'eps' as const },
+                            { label: 'Operating Margin', key: 'operating_margin' as const },
+                            { label: 'Gross Margin', key: 'gross_margin' as const },
+                          ].map(metric => (
+                            <tr key={metric.key} className="hover:bg-slate-50">
+                              <td className="px-4 py-2.5 font-medium text-slate-800">{metric.label}</td>
+                              {annualDbQuarters
+                                .sort((a, b) => a.fiscal_quarter - b.fiscal_quarter)
+                                .map(q => (
+                                  <td key={q.period} className="px-4 py-2.5 text-right font-mono text-slate-800">
+                                    {q[metric.key] || '-'}
+                                  </td>
+                                ))
+                              }
+                            </tr>
+                          ))}
+                          {/* YoY row */}
+                          {[
+                            { label: 'Revenue YoY', key: 'revenue_yoy' as const },
+                            { label: 'Net Income YoY', key: 'net_income_yoy' as const },
+                            { label: 'EPS YoY', key: 'eps_yoy' as const },
+                          ].map(metric => (
+                            <tr key={metric.key} className="hover:bg-slate-50 bg-slate-50/50">
+                              <td className="px-4 py-2.5 font-medium text-slate-500 text-xs">{metric.label}</td>
+                              {annualDbQuarters
+                                .sort((a, b) => a.fiscal_quarter - b.fiscal_quarter)
+                                .map(q => {
+                                  const val = q[metric.key] || '-'
+                                  return (
+                                    <td key={q.period} className="px-4 py-2.5 text-right">
+                                      <span className={`font-mono text-xs font-medium ${
+                                        val.startsWith('+') ? 'text-green-600' :
+                                        val.startsWith('-') ? 'text-red-500' : 'text-slate-400'
+                                      }`}>{val}</span>
+                                    </td>
+                                  )
+                                })
+                              }
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-400 text-center">年度汇总展示该财年各季度核心指标 · 数据来源：数据API</p>
+                </div>
               )}
 
               {/* No data at all */}
@@ -608,7 +690,7 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
                     {selectedPeriod} 暂无财报数据
                   </h3>
                   <p className="text-sm text-slate-500">
-                    财报数据由系统每日自动获取，该季度暂未收录
+                    财报数据由系统每日自动获取，该{isAnnualView ? '年度' : '季度'}暂未收录
                   </p>
                 </div>
               )}
