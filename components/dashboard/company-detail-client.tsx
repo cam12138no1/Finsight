@@ -591,7 +591,7 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-4">
                   <h2 className="text-lg font-bold text-slate-800">{formatPeriodLabel(selectedPeriod, symbol)} 财报数据</h2>
-                  {hasFinancialData && selectedUserAnalysis && displayAnalysis && (
+                  {hasFinancialData && selectedUserAnalysis && (
                     <div className="flex bg-slate-100 rounded-lg p-0.5">
                       <button
                         onClick={() => setViewTab('financial')}
@@ -706,7 +706,7 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
               )}
 
               {/* Analysis Content (comparison tab) */}
-              {hasFinancialData && displayAnalysis && viewTab === 'comparison' && (
+              {hasFinancialData && selectedUserAnalysis && viewTab === 'comparison' && (
                 <div className="space-y-4">
                   <div className="flex gap-2 justify-end">
                     <Button
@@ -729,14 +729,15 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
                     </Button>
                   </div>
                   <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
-                    {isLoadingFull && selectedUserAnalysis ? (
+                    {isLoadingFull || !displayAnalysis ? (
                       <div className="flex items-center justify-center py-20">
-                        <Loader2 className="h-8 w-8 text-blue-500 animate-spin" />
+                        <Loader2 className="h-8 w-8 text-purple-500 animate-spin" />
+                        <span className="ml-3 text-sm text-slate-500">加载对比分析结果...</span>
                       </div>
                     ) : (
                       <AnalysisView
                         analysis={displayAnalysis}
-                        hasResearchReport={hasResearchReport}
+                        hasResearchReport={true}
                       />
                     )}
                   </div>
@@ -823,8 +824,8 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
                 </div>
               )}
 
-              {/* Earnings Call Key Conclusions */}
-              {!isAnnualView && hasFinancialData && (
+              {/* Earnings Call Key Conclusions — only on financial tab */}
+              {!isAnnualView && hasFinancialData && (viewTab === 'financial' || !selectedUserAnalysis) && (
                 <div className="mt-6">
                   {isLoadingTranscript ? (
                     <div className="bg-white rounded-2xl border border-slate-200 p-4 flex items-center gap-3">
@@ -885,12 +886,22 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
                                   {categoryLabels[c.category] || c.category}
                                 </span>
                                 <span className="text-[10px] text-slate-400 flex-shrink-0">
-                                  {c.speaker} · 点击查看原文
+                                  📎 点击查看原文
                                 </span>
                               </div>
-                              <p className="text-sm text-slate-800 leading-relaxed">
+                              <p className="text-sm text-slate-800 leading-relaxed mb-2">
                                 <span className="bg-yellow-200/60 px-0.5 rounded">{c.summary}</span>
                               </p>
+                              {c.original_quote && (
+                                <div className="mt-1.5 pt-1.5 border-t border-slate-100">
+                                  <p className="text-xs text-slate-400 italic leading-relaxed line-clamp-2">
+                                    "{c.original_quote.slice(0, 150)}{c.original_quote.length > 150 ? '...' : ''}"
+                                  </p>
+                                  <p className="text-[10px] text-slate-400 mt-0.5">
+                                    — {c.speaker} · {selectedPeriod} Earnings Call
+                                  </p>
+                                </div>
+                              )}
                             </button>
                           )
                         })}
