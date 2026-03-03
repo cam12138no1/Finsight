@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   ArrowLeft, Upload, FileText, Loader2, CheckCircle2, AlertCircle,
-  Trash2, BookOpen
+  Trash2, BookOpen, MessageSquareQuote, ChevronDown, ChevronUp
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -134,6 +134,11 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
 
   // DB-fetched quarters from cron
   const [dbQuarters, setDbQuarters] = useState<DbQuarter[]>([])
+
+  // Transcript state
+  const [transcript, setTranscript] = useState<{ content: string; transcript_date: string; speakers: string[] } | null>(null)
+  const [isLoadingTranscript, setIsLoadingTranscript] = useState(false)
+  const [showTranscript, setShowTranscript] = useState(false)
 
   // Research report upload state
   const [showResearchUpload, setShowResearchUpload] = useState(false)
@@ -270,11 +275,39 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
       .finally(() => setIsLoadingFull(false))
   }, [selectedUserAnalysis?.id])
 
+  // Load transcript when a quarterly period is selected
+  useEffect(() => {
+    if (!selectedPeriod || selectedPeriod.startsWith('FY ')) {
+      setTranscript(null)
+      return
+    }
+    const match = selectedPeriod.match(/(\d{4}) Q(\d)/)
+    if (!match) return
+
+    setIsLoadingTranscript(true)
+    fetch(`/api/transcripts?symbol=${encodeURIComponent(symbol)}&year=${match[1]}&quarter=${match[2]}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.transcript?.content) {
+          setTranscript({
+            content: data.transcript.content,
+            transcript_date: data.transcript.transcript_date,
+            speakers: data.transcript.speakers || [],
+          })
+        } else {
+          setTranscript(null)
+        }
+      })
+      .catch(() => setTranscript(null))
+      .finally(() => setIsLoadingTranscript(false))
+  }, [selectedPeriod, symbol])
+
   const handlePeriodSelect = (periodLabel: string) => {
     setSelectedPeriod(periodLabel)
     setSelectedAnalysis(userAnalysisByPeriod.get(periodLabel) || null)
     setFullAnalysis(null)
     setShowResearchUpload(false)
+    setShowTranscript(false)
   }
 
   // File handlers
@@ -680,6 +713,68 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
                 </div>
               )}
 
+              {/* Earnings Call Transcript */}
+              {!isAnnualView && hasFinancialData && (
+                <div className="mt-6">
+                  {isLoadingTranscript ? (
+                    <div className="bg-white rounded-2xl border border-slate-200 p-4 flex items-center gap-3">
+                      <Loader2 className="h-4 w-4 text-slate-400 animate-spin" />
+                      <span className="text-sm text-slate-500">加载电话会议记录...</span>
+                    </div>
+                  ) : transcript ? (
+                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
+                      <button
+                        onClick={() => setShowTranscript(!showTranscript)}
+                        className="w-full flex items-center justify-between p-5 hover:bg-slate-50 transition-colors rounded-2xl"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-violet-100 to-purple-100 flex items-center justify-center">
+                            <MessageSquareQuote className="h-4 w-4 text-violet-600" />
+                          </div>
+                          <div className="text-left">
+                            <h3 className="text-sm font-semibold text-slate-800">Earnings Call Transcript</h3>
+                            <p className="text-xs text-slate-500">
+                              {transcript.transcript_date} · {transcript.speakers.length} 位发言人 · {Math.round(transcript.content.length / 1000)}K 字符
+                            </p>
+                          </div>
+                        </div>
+                        {showTranscript
+                          ? <ChevronUp className="h-5 w-5 text-slate-400" />
+                          : <ChevronDown className="h-5 w-5 text-slate-400" />
+                        }
+                      </button>
+
+                      {showTranscript && (
+                        <div className="px-5 pb-5 border-t border-slate-100">
+                          {/* Speakers list */}
+                          {transcript.speakers.length > 0 && (
+                            <div className="mt-4 mb-4 flex flex-wrap gap-1.5">
+                              {transcript.speakers.slice(0, 15).map(speaker => (
+                                <span key={speaker} className="text-xs bg-violet-50 text-violet-700 px-2 py-0.5 rounded-full border border-violet-100">
+                                  {speaker}
+                                </span>
+                              ))}
+                              {transcript.speakers.length > 15 && (
+                                <span className="text-xs text-slate-400">+{transcript.speakers.length - 15} more</span>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Transcript content with speaker highlighting */}
+                          <div className="max-h-[600px] overflow-y-auto pr-2 space-y-3">
+                            <TranscriptContent
+                              content={transcript.content}
+                              date={transcript.transcript_date}
+                              period={selectedPeriod || ''}
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
+                </div>
+              )}
+
               {/* No data at all */}
               {!hasFinancialData && (
                 <div className="text-center py-16 bg-white rounded-2xl border border-slate-200">
@@ -900,5 +995,80 @@ function DbQuarterDetailView({ quarter, allQuarters, period }: { quarter: DbQuar
         数据来源：数据API · 客观数据展示，不含任何主观评价 · 上传研报可查看对比分析
       </p>
     </div>
+  )
+}
+
+// ============================================================
+// Transcript Content Renderer
+// Parses "Speaker: text" format and renders with attribution
+// ============================================================
+
+function TranscriptContent({ content, date, period }: { content: string; date: string; period: string }) {
+  // Parse transcript into speaker segments
+  const segments: Array<{ speaker: string; text: string }> = []
+  const lines = content.split('\n')
+  let currentSpeaker = ''
+  let currentText = ''
+
+  for (const line of lines) {
+    const speakerMatch = line.match(/^([A-Z][a-zA-Z\s\-'.]{1,58}):\s(.*)/)
+    if (speakerMatch) {
+      if (currentSpeaker && currentText.trim()) {
+        segments.push({ speaker: currentSpeaker, text: currentText.trim() })
+      }
+      currentSpeaker = speakerMatch[1].trim()
+      currentText = speakerMatch[2]
+    } else {
+      currentText += '\n' + line
+    }
+  }
+  if (currentSpeaker && currentText.trim()) {
+    segments.push({ speaker: currentSpeaker, text: currentText.trim() })
+  }
+
+  // Color mapping for speakers
+  const speakerColors = new Map<string, string>()
+  const colorPalette = [
+    'bg-blue-50 border-blue-200 text-blue-800',
+    'bg-violet-50 border-violet-200 text-violet-800',
+    'bg-emerald-50 border-emerald-200 text-emerald-800',
+    'bg-amber-50 border-amber-200 text-amber-800',
+    'bg-rose-50 border-rose-200 text-rose-800',
+    'bg-cyan-50 border-cyan-200 text-cyan-800',
+    'bg-indigo-50 border-indigo-200 text-indigo-800',
+    'bg-orange-50 border-orange-200 text-orange-800',
+  ]
+  let colorIdx = 0
+
+  function getSpeakerColor(speaker: string): string {
+    if (!speakerColors.has(speaker)) {
+      speakerColors.set(speaker, colorPalette[colorIdx % colorPalette.length])
+      colorIdx++
+    }
+    return speakerColors.get(speaker)!
+  }
+
+  const reference = `${period} Earnings Call, ${date}`
+
+  return (
+    <>
+      <div className="text-xs text-slate-400 mb-3 pb-2 border-b border-slate-100">
+        来源：{reference}
+      </div>
+      {segments.map((seg, idx) => {
+        const colorClass = getSpeakerColor(seg.speaker)
+        return (
+          <div key={idx} className={`p-3 rounded-lg border ${colorClass}`}>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs font-semibold">{seg.speaker}</span>
+              <span className="text-[10px] opacity-50">[{reference}]</span>
+            </div>
+            <p className="text-sm leading-relaxed whitespace-pre-wrap opacity-90">
+              {seg.text.length > 800 ? seg.text.slice(0, 800) + '...' : seg.text}
+            </p>
+          </div>
+        )
+      })}
+    </>
   )
 }

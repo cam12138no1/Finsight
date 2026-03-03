@@ -25,7 +25,39 @@ export interface FetchedFinancial {
   updated_at: Date
 }
 
+export interface FetchedTranscript {
+  id: number
+  symbol: string
+  fiscal_year: number
+  fiscal_quarter: number
+  transcript_date: string
+  transcript_api_id: string
+  content: string
+  content_length: number
+  word_count: number
+  speakers: string[]
+  fetched_at: Date
+}
+
 export async function ensureFetchedFinancialsTable(): Promise<void> {
+  await sql`
+    CREATE TABLE IF NOT EXISTS fetched_transcripts (
+      id SERIAL PRIMARY KEY,
+      symbol VARCHAR(20) NOT NULL,
+      fiscal_year INTEGER NOT NULL,
+      fiscal_quarter INTEGER NOT NULL,
+      transcript_date VARCHAR(50),
+      transcript_api_id VARCHAR(100) NOT NULL,
+      content TEXT NOT NULL,
+      content_length INTEGER DEFAULT 0,
+      word_count INTEGER DEFAULT 0,
+      speakers TEXT[] DEFAULT ARRAY[]::TEXT[],
+      fetched_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE(symbol, fiscal_year, fiscal_quarter)
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS idx_fetched_transcripts_symbol ON fetched_transcripts(symbol)`
+
   await sql`
     CREATE TABLE IF NOT EXISTS fetched_financials (
       id SERIAL PRIMARY KEY,
@@ -254,4 +286,72 @@ export async function getStoredSymbols(): Promise<string[]> {
     SELECT DISTINCT symbol FROM fetched_financials ORDER BY symbol
   `
   return result.rows.map(r => r.symbol)
+}
+
+// ============================================================
+// Transcript queries
+// ============================================================
+
+/**
+ * Upsert a transcript record
+ */
+export async function upsertTranscript(data: {
+  symbol: string
+  fiscal_year: number
+  fiscal_quarter: number
+  transcript_date: string
+  transcript_api_id: string
+  content: string
+  content_length: number
+  word_count: number
+  speakers: string[]
+}): Promise<void> {
+  await sql`
+    INSERT INTO fetched_transcripts (
+      symbol, fiscal_year, fiscal_quarter, transcript_date,
+      transcript_api_id, content, content_length, word_count, speakers
+    ) VALUES (
+      ${data.symbol}, ${data.fiscal_year}, ${data.fiscal_quarter},
+      ${data.transcript_date}, ${data.transcript_api_id},
+      ${data.content}, ${data.content_length}, ${data.word_count},
+      ${data.speakers as any}
+    )
+    ON CONFLICT (symbol, fiscal_year, fiscal_quarter)
+    DO UPDATE SET
+      content = EXCLUDED.content,
+      content_length = EXCLUDED.content_length,
+      word_count = EXCLUDED.word_count,
+      speakers = EXCLUDED.speakers,
+      transcript_date = EXCLUDED.transcript_date,
+      fetched_at = NOW()
+  `
+}
+
+/**
+ * Get transcript for a specific quarter
+ */
+export async function getTranscript(
+  symbol: string,
+  fiscalYear: number,
+  fiscalQuarter: number
+): Promise<FetchedTranscript | null> {
+  const result = await sql`
+    SELECT * FROM fetched_transcripts
+    WHERE symbol = ${symbol}
+      AND fiscal_year = ${fiscalYear}
+      AND fiscal_quarter = ${fiscalQuarter}
+  `
+  return (result.rows[0] as FetchedTranscript) || null
+}
+
+/**
+ * Get all transcripts for a company
+ */
+export async function getTranscriptsBySymbol(symbol: string): Promise<FetchedTranscript[]> {
+  const result = await sql`
+    SELECT * FROM fetched_transcripts
+    WHERE symbol = ${symbol}
+    ORDER BY fiscal_year DESC, fiscal_quarter DESC
+  `
+  return result.rows as FetchedTranscript[]
 }

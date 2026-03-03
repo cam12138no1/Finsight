@@ -3,6 +3,7 @@ import { getAllCompanies, getCompanyCategoryBySymbol } from '@/lib/companies'
 import {
   ensureFetchedFinancialsTable,
   upsertFetchedFinancial,
+  upsertTranscript,
   logCronJobStart,
   logCronJobEnd,
 } from '@/lib/db/financial-queries'
@@ -173,11 +174,65 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const elapsed = Date.now() - startTime
-    if (logId) await logCronJobEnd(logId, errors.length > 0 ? 'error' : 'success', companiesChecked, newReportsFound, errors.length > 0 ? errors.join('; ') : undefined, details)
-    console.log(`[Cron] Done in ${elapsed}ms. Companies: ${companiesChecked}, Stored: ${newReportsFound}, Errors: ${errors.length}`)
+    // ============================================================
+    // Phase 2: Fetch Earnings Call Transcripts
+    // ============================================================
+    console.log(`[Cron] Phase 2: Fetching transcripts...`)
+    let transcriptsFetched = 0
 
-    return NextResponse.json({ success: true, elapsed_ms: elapsed, companies_checked: companiesChecked, reports_upserted: newReportsFound, errors: errors.length > 0 ? errors : undefined, details })
+    for (const company of companies) {
+      try {
+        const listUrl = `${FINANCIAL_API_BASE}/api/v1/transcripts/companies/${encodeURIComponent(company.symbol)}/transcripts?limit=8`
+        const listRes = await fetch(listUrl, { headers: { accept: 'application/json' }, cache: 'no-store' })
+        if (!listRes.ok) continue
+
+        const transcriptList: Array<{
+          id: string; ticker: string; fiscal_year: number; fiscal_quarter: number
+          transcript_date: string; content_preview: string; content_length: number; word_count: number
+        }> = await listRes.json()
+        if (!transcriptList || !Array.isArray(transcriptList) || transcriptList.length === 0) continue
+
+        for (const t of transcriptList) {
+          try {
+            // Fetch full transcript content by ID
+            const detailUrl = `${FINANCIAL_API_BASE}/api/v1/transcripts/${t.id}`
+            const detailRes = await fetch(detailUrl, { headers: { accept: 'application/json' }, cache: 'no-store' })
+            if (!detailRes.ok) continue
+
+            const fullTranscript: { id: string; content: string; content_length: number; word_count: number } = await detailRes.json()
+            if (!fullTranscript.content) continue
+
+            // Extract unique speaker names from "SpeakerName: ..." pattern
+            const speakerMatches = fullTranscript.content.match(/^([A-Z][a-zA-Z\s\-'.]+?):\s/gm) || []
+            const speakers = [...new Set(speakerMatches.map(s => s.replace(/:\s*$/, '').trim()))].filter(s => s.length > 1 && s.length < 60)
+
+            await upsertTranscript({
+              symbol: company.symbol,
+              fiscal_year: t.fiscal_year,
+              fiscal_quarter: t.fiscal_quarter,
+              transcript_date: t.transcript_date,
+              transcript_api_id: t.id,
+              content: fullTranscript.content,
+              content_length: fullTranscript.content_length || fullTranscript.content.length,
+              word_count: fullTranscript.word_count || 0,
+              speakers,
+            })
+            transcriptsFetched++
+          } catch (err: any) {
+            errors.push(`Transcript ${company.symbol} ${t.fiscal_year}Q${t.fiscal_quarter}: ${err.message}`)
+          }
+        }
+      } catch (err: any) {
+        errors.push(`Transcripts ${company.symbol}: ${err.message}`)
+      }
+    }
+    console.log(`[Cron] Transcripts fetched: ${transcriptsFetched}`)
+
+    const elapsed = Date.now() - startTime
+    if (logId) await logCronJobEnd(logId, errors.length > 0 ? 'error' : 'success', companiesChecked, newReportsFound, errors.length > 0 ? errors.join('; ') : undefined, { ...details, transcripts_fetched: transcriptsFetched })
+    console.log(`[Cron] Done in ${elapsed}ms. Companies: ${companiesChecked}, Reports: ${newReportsFound}, Transcripts: ${transcriptsFetched}, Errors: ${errors.length}`)
+
+    return NextResponse.json({ success: true, elapsed_ms: elapsed, companies_checked: companiesChecked, reports_upserted: newReportsFound, transcripts_fetched: transcriptsFetched, errors: errors.length > 0 ? errors : undefined, details })
   } catch (error: any) {
     console.error('[Cron] Fatal:', error)
     if (logId) { try { await logCronJobEnd(logId, 'error', 0, 0, error.message) } catch {} }
