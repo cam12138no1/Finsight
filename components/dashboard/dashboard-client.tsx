@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Loader2, FileText, Building2, Cpu, ShoppingBag, ChevronRight, TrendingUp, TrendingDown } from 'lucide-react'
+import { Loader2, FileText, Building2, Cpu, ShoppingBag, ChevronRight, TrendingUp, TrendingDown, BarChart3 } from 'lucide-react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import {
   AI_APPLICATION_COMPANIES,
@@ -69,8 +69,7 @@ function getCompaniesForCategory(category: CompanyCategory): Company[] {
   }
 }
 
-// Render a metric delta value with color and arrow
-function MetricDelta({ value }: { value: string | undefined }) {
+function MetricDelta({ value, label }: { value: string | undefined; label?: string }) {
   if (!value) return null
   const isPositive = value.startsWith('+')
   const isNegative = value.startsWith('-')
@@ -81,8 +80,39 @@ function MetricDelta({ value }: { value: string | undefined }) {
       {isPositive && <TrendingUp className="h-3 w-3" />}
       {isNegative && <TrendingDown className="h-3 w-3" />}
       {value}
+      {label && <span className="text-slate-400 ml-0.5">{label}</span>}
     </span>
   )
+}
+
+/**
+ * Generate a 3-sentence objective summary from the latest quarter data.
+ * Strictly factual — no subjective language.
+ */
+function generateObjectiveSummary(q: QuarterData, companyName: string): string {
+  const parts: string[] = []
+
+  if (q.metrics.revenue) {
+    let revSentence = `${companyName} ${q.period} 营收 ${q.metrics.revenue}`
+    if (q.metrics.revenueYoY) revSentence += `，同比变化 ${q.metrics.revenueYoY}`
+    parts.push(revSentence + '。')
+  }
+
+  if (q.metrics.netIncome) {
+    let niSentence = `净利润 ${q.metrics.netIncome}`
+    if (q.metrics.netIncomeYoY) niSentence += `，同比 ${q.metrics.netIncomeYoY}`
+    if (q.metrics.operatingMargin) niSentence += `；营业利润率 ${q.metrics.operatingMargin}`
+    parts.push(niSentence + '。')
+  }
+
+  if (q.metrics.eps) {
+    let epsSentence = `每股收益 ${q.metrics.eps}`
+    if (q.metrics.epsYoY) epsSentence += `（同比 ${q.metrics.epsYoY}）`
+    if (q.metrics.grossMargin) epsSentence += `，毛利率 ${q.metrics.grossMargin}`
+    parts.push(epsSentence + '。')
+  }
+
+  return parts.slice(0, 3).join('')
 }
 
 export default function DashboardClient() {
@@ -97,7 +127,6 @@ export default function DashboardClient() {
 
   const loadDashboardData = useCallback(async () => {
     try {
-      // Fetch both user analyses and DB-stored financials in parallel
       const [dashboardRes, companyDataRes] = await Promise.allSettled([
         fetch('/api/dashboard'),
         fetch(`/api/company-data?category=${activeCategory}`),
@@ -105,16 +134,12 @@ export default function DashboardClient() {
 
       if (dashboardRes.status === 'fulfilled') {
         const data = await dashboardRes.value.json()
-        if (data.analyses) {
-          setAnalyses(data.analyses)
-        }
+        if (data.analyses) setAnalyses(data.analyses)
       }
 
       if (companyDataRes.status === 'fulfilled') {
         const data = await companyDataRes.value.json()
-        if (data.financials) {
-          setDbFinancials(data.financials)
-        }
+        if (data.financials) setDbFinancials(data.financials)
       }
 
       setIsLoading(false)
@@ -124,81 +149,52 @@ export default function DashboardClient() {
     }
   }, [activeCategory])
 
-  useEffect(() => {
-    loadDashboardData()
-  }, [loadDashboardData])
+  useEffect(() => { loadDashboardData() }, [loadDashboardData])
 
-  // Build financial data from both DB records and user analyses, keyed by symbol
   const companyDataMap = useMemo(() => {
     const map = new Map<string, CompanyFinancialData>()
 
-    // 1. First add DB-fetched data (from cron job)
     for (const f of dbFinancials) {
       const sym = f.symbol.toUpperCase()
       if (!map.has(sym)) {
         map.set(sym, {
-          symbol: f.symbol,
-          name: f.company_name,
-          nameZh: f.company_name,
-          category: f.category as CompanyCategory,
-          quarters: [],
-          lastUpdated: '',
+          symbol: f.symbol, name: f.company_name, nameZh: f.company_name,
+          category: f.category as CompanyCategory, quarters: [], lastUpdated: '',
         })
       }
       const company = map.get(sym)!
-      const exists = company.quarters.some(
-        q => q.fiscalYear === f.fiscal_year && q.fiscalQuarter === f.fiscal_quarter
-      )
-      if (!exists) {
+      if (!company.quarters.some(q => q.fiscalYear === f.fiscal_year && q.fiscalQuarter === f.fiscal_quarter)) {
         company.quarters.push({
-          fiscalYear: f.fiscal_year,
-          fiscalQuarter: f.fiscal_quarter,
-          period: f.period,
+          fiscalYear: f.fiscal_year, fiscalQuarter: f.fiscal_quarter, period: f.period,
           metrics: {
-            revenue: f.revenue || '',
-            revenueYoY: f.revenue_yoy || '',
-            netIncome: f.net_income || '',
-            netIncomeYoY: f.net_income_yoy || '',
-            eps: f.eps || '',
-            epsYoY: f.eps_yoy || '',
-            operatingMargin: f.operating_margin || '',
-            grossMargin: f.gross_margin || '',
+            revenue: f.revenue || '', revenueYoY: f.revenue_yoy || '',
+            netIncome: f.net_income || '', netIncomeYoY: f.net_income_yoy || '',
+            eps: f.eps || '', epsYoY: f.eps_yoy || '',
+            operatingMargin: f.operating_margin || '', grossMargin: f.gross_margin || '',
           },
           reportAvailable: true,
         })
       }
     }
 
-    // 2. Then merge user-uploaded analysis data (overrides DB data for same quarter)
     const completedAnalyses = analyses.filter(a => a.processed && !a.error)
     const userCompanyData = buildCompanyDataFromAnalyses(completedAnalyses)
     for (const cd of userCompanyData) {
       const sym = cd.symbol.toUpperCase()
-      if (!map.has(sym)) {
-        map.set(sym, cd)
-      } else {
+      if (!map.has(sym)) { map.set(sym, cd) }
+      else {
         const existing = map.get(sym)!
         for (const q of cd.quarters) {
-          const idx = existing.quarters.findIndex(
-            eq => eq.fiscalYear === q.fiscalYear && eq.fiscalQuarter === q.fiscalQuarter
-          )
-          if (idx >= 0) {
-            existing.quarters[idx] = q
-          } else {
-            existing.quarters.push(q)
-          }
+          const idx = existing.quarters.findIndex(eq => eq.fiscalYear === q.fiscalYear && eq.fiscalQuarter === q.fiscalQuarter)
+          if (idx >= 0) existing.quarters[idx] = q
+          else existing.quarters.push(q)
         }
       }
     }
 
-    // Sort quarters newest first within each company
     for (const company of map.values()) {
-      company.quarters.sort((a, b) => {
-        if (b.fiscalYear !== a.fiscalYear) return b.fiscalYear - a.fiscalYear
-        return b.fiscalQuarter - a.fiscalQuarter
-      })
+      company.quarters.sort((a, b) => b.fiscalYear !== a.fiscalYear ? b.fiscalYear - a.fiscalYear : b.fiscalQuarter - a.fiscalQuarter)
     }
-
     return map
   }, [analyses, dbFinancials])
 
@@ -218,7 +214,6 @@ export default function DashboardClient() {
     )
   }
 
-  // Check if any company has data
   const hasAnyData = companies.some(c => {
     const d = companyDataMap.get(c.symbol.toUpperCase())
     return d && d.quarters.length > 0
@@ -226,7 +221,6 @@ export default function DashboardClient() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      {/* Header */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center gap-3">
@@ -235,37 +229,37 @@ export default function DashboardClient() {
             </div>
             <div>
               <h1 className="text-xl font-bold text-slate-900">{categoryInfo.name}</h1>
-              <p className="text-xs text-slate-500">
-                {companies.length} 家公司 · 最近季度核心指标
-              </p>
+              <p className="text-xs text-slate-500">{companies.length} 家公司 · 最近季度核心指标</p>
             </div>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-6 py-8 space-y-4">
-        {/* Each company = one horizontal block */}
+      <main className="max-w-7xl mx-auto px-6 py-8 space-y-5">
         {companies.map((company) => {
           const data = companyDataMap.get(company.symbol.toUpperCase())
-          const quarters = data?.quarters.slice(0, 3) || [] // Latest 3 quarters, newest first
+          const quarters = data?.quarters.slice(0, 4) || []
+          const latestQ = quarters[0]
+          const summary = latestQ ? generateObjectiveSummary(latestQ, company.name) : ''
 
           return (
             <div
               key={company.symbol}
               onClick={() => handleCompanyClick(company.symbol)}
-              className="bg-white rounded-2xl border border-slate-200 p-5 hover:border-blue-300 hover:shadow-md transition-all cursor-pointer group"
+              className="bg-white rounded-2xl border border-slate-200 p-6 hover:border-blue-300 hover:shadow-lg transition-all cursor-pointer group"
             >
-              {/* Top: Company name (left) */}
-              <div className="flex items-center justify-between mb-3">
+              {/* Header row: Company name + summary */}
+              <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center font-bold text-slate-600 text-xs flex-shrink-0">
+                  <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center font-bold text-slate-600 text-xs flex-shrink-0">
                     {company.symbol.slice(0, 4)}
                   </div>
                   <div>
                     <div className="flex items-center gap-1.5">
-                      <span className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors">
+                      <span className="font-semibold text-slate-900 text-base group-hover:text-blue-600 transition-colors">
                         {company.name}
                       </span>
+                      <span className="text-xs text-slate-400 ml-1">{company.nameZh !== company.name ? company.nameZh : ''}</span>
                       <ChevronRight className="h-4 w-4 text-slate-300 group-hover:text-blue-500 transition-colors" />
                     </div>
                     <span className="text-xs text-slate-400">{company.symbol}</span>
@@ -273,58 +267,58 @@ export default function DashboardClient() {
                 </div>
                 {quarters.length === 0 && (
                   <span className="text-xs text-slate-400 bg-slate-50 px-3 py-1 rounded-full">
-                    暂无数据 · 点击进入详情页上传
+                    暂无数据 · 等待数据API同步
                   </span>
                 )}
               </div>
 
-              {/* Below: 3 quarter rows, newest → oldest, each with 3 core metrics */}
+              {/* 3-sentence objective conclusion */}
+              {summary && (
+                <div className="mb-4 px-4 py-3 bg-gradient-to-r from-blue-50/70 to-indigo-50/50 rounded-xl border border-blue-100/60">
+                  <p className="text-sm text-slate-700 leading-relaxed">{summary}</p>
+                </div>
+              )}
+
+              {/* Metrics table */}
               {quarters.length > 0 && (
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   {/* Column headers */}
-                  <div className="grid grid-cols-4 gap-4 px-3 pb-1">
+                  <div className="grid grid-cols-4 gap-4 px-3 pb-1.5">
                     <div className="text-xs font-medium text-slate-400">季度</div>
-                    <div className="text-xs font-medium text-slate-400 text-right">Net Income</div>
-                    <div className="text-xs font-medium text-slate-400 text-right">Revenue</div>
-                    <div className="text-xs font-medium text-slate-400 text-right">EPS</div>
+                    <div className="text-xs font-medium text-slate-400 text-right">Revenue（营收）</div>
+                    <div className="text-xs font-medium text-slate-400 text-right">Net Income（净利润）</div>
+                    <div className="text-xs font-medium text-slate-400 text-right">EPS（每股收益）</div>
                   </div>
 
                   {quarters.map((q, idx) => (
                     <div
                       key={`${q.fiscalYear}-Q${q.fiscalQuarter}`}
                       className={`grid grid-cols-4 gap-4 px-3 py-2.5 rounded-xl ${
-                        idx === 0 ? 'bg-blue-50/60' : 'bg-slate-50/60'
+                        idx === 0 ? 'bg-blue-50/60' : 'bg-slate-50/40'
                       }`}
                     >
-                      {/* Quarter label */}
                       <div className="flex items-center">
                         <span className={`text-sm font-semibold ${idx === 0 ? 'text-blue-700' : 'text-slate-600'}`}>
                           {q.period}
                         </span>
                       </div>
 
-                      {/* Net Income */}
-                      <div className="text-right">
-                        <div className="text-sm font-medium text-slate-800">
-                          {q.metrics.netIncome || '-'}
-                        </div>
-                        <MetricDelta value={q.metrics.netIncomeYoY} />
-                      </div>
-
                       {/* Revenue */}
                       <div className="text-right">
-                        <div className="text-sm font-medium text-slate-800">
-                          {q.metrics.revenue || '-'}
-                        </div>
-                        <MetricDelta value={q.metrics.revenueYoY} />
+                        <div className="text-sm font-medium text-slate-800">{q.metrics.revenue || '-'}</div>
+                        <MetricDelta value={q.metrics.revenueYoY} label="YoY" />
+                      </div>
+
+                      {/* Net Income */}
+                      <div className="text-right">
+                        <div className="text-sm font-medium text-slate-800">{q.metrics.netIncome || '-'}</div>
+                        <MetricDelta value={q.metrics.netIncomeYoY} label="YoY" />
                       </div>
 
                       {/* EPS */}
                       <div className="text-right">
-                        <div className="text-sm font-medium text-slate-800">
-                          {q.metrics.eps || '-'}
-                        </div>
-                        <MetricDelta value={q.metrics.epsYoY} />
+                        <div className="text-sm font-medium text-slate-800">{q.metrics.eps || '-'}</div>
+                        <MetricDelta value={q.metrics.epsYoY} label="YoY" />
                       </div>
                     </div>
                   ))}
@@ -334,16 +328,13 @@ export default function DashboardClient() {
           )
         })}
 
-        {/* Empty state when NO company in this category has data */}
         {!hasAnyData && (
           <div className="mt-4 text-center py-12 bg-white rounded-2xl border border-slate-200">
             <div className="h-16 w-16 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-4">
               <FileText className="h-8 w-8 text-slate-400" />
             </div>
             <h3 className="text-lg font-semibold text-slate-700 mb-2">暂无财报数据</h3>
-            <p className="text-sm text-slate-500">
-              点击任意公司名称进入详情页，上传财报进行分析
-            </p>
+            <p className="text-sm text-slate-500">数据将由系统每日自动从数据API获取</p>
           </div>
         )}
       </main>

@@ -247,6 +247,26 @@ curl -X 'GET' \
 ```
 
 需要确认的事项：
-1. 上表 29 家公司的 ticker 是否都已录入？
+1. 上表 29 家公司的 ticker 是否都已录入？目前只有 MSFT、GOOGL、META、AAPL、NVDA 有数据，其余 24 家返回空数组。
 2. 非美股公司（如 `RMS.PA`、`600519.SS`、`SSNLF`）是否支持？
-3. `s3_url` 后续会提供吗？（目前 null 不影响核心功能）
+
+---
+
+## 七、后续需求：增加管理层发言 / Earnings Call 摘要
+
+当前 `financial_metrics` 只包含数值型指标，缺少财报中高管的发言和管理层讨论内容。
+
+**希望后续在响应中新增一个字段：**
+
+```json
+{
+  "financial_metrics": { ... },
+  "management_commentary": "CEO/CFO 在 earnings call 或 MD&A 中的关键发言摘要文本，如业务展望、战略方向、风险提示等"
+}
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `management_commentary` | string | 管理层发言/讨论要点的文本摘要，越详细越好。可以是 earnings call transcript 摘要，也可以是 10-Q/10-K 中 MD&A 部分的文本。 |
+
+这个字段对于 AI 做深度分析非常关键（如理解收入增长的管理层归因、CapEx 投入方向、风险提示等）。**优先级 P1**，不阻塞当前功能，但尽快加上效果会好很多。

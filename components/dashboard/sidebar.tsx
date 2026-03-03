@@ -1,6 +1,6 @@
 'use client'
 
-import { LogOut, LayoutGrid, Building2, Cpu, ShoppingBag } from 'lucide-react'
+import { LogOut, Building2, Cpu, ShoppingBag, BarChart3 } from 'lucide-react'
 import { usePathname, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { signOut } from 'next-auth/react'
@@ -39,6 +39,15 @@ export default function Sidebar() {
       category: 'CONSUMER_GOODS',
       isActive: (path: string, cat: string | null) =>
         path === '/dashboard' && cat === 'CONSUMER_GOODS',
+    },
+    {
+      name: '消费品竞品对比',
+      href: '/dashboard/comparison-consumer',
+      icon: BarChart3,
+      description: '按品类横向对比',
+      category: '__comparison_consumer',
+      isActive: (path: string, _cat: string | null) =>
+        path === '/dashboard/comparison-consumer',
     },
   ]
 

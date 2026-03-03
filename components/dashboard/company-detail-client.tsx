@@ -92,6 +92,8 @@ interface UploadedFile {
 
 const MAX_FILE_SIZE = 500 * 1024 * 1024
 
+type ViewMode = 'quarterly' | 'annual'
+
 function generatePast3YearsQuarters(): { year: number; quarter: number; label: string }[] {
   const now = new Date()
   const currentYear = now.getFullYear()
@@ -107,6 +109,14 @@ function generatePast3YearsQuarters(): { year: number; quarter: number; label: s
   return quarters
 }
 
+function generatePast3Years(): { year: number; label: string }[] {
+  const currentYear = new Date().getFullYear()
+  return Array.from({ length: 4 }, (_, i) => ({
+    year: currentYear - i,
+    label: `FY ${currentYear - i}`,
+  }))
+}
+
 export default function CompanyDetailClient({ symbol }: { symbol: string }) {
   const router = useRouter()
   const company = getCompanyBySymbol(symbol)
@@ -114,6 +124,7 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
 
   const [analyses, setAnalyses] = useState<Analysis[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [viewMode, setViewMode] = useState<ViewMode>('quarterly')
   const [selectedPeriod, setSelectedPeriod] = useState<string | null>(null)
 
   // User-uploaded analysis for selected period
@@ -132,7 +143,8 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
   const [uploadProgress, setUploadProgress] = useState('')
   const isSubmittingRef = useRef(false)
 
-  const allPeriods = generatePast3YearsQuarters()
+  const allQuarterPeriods = generatePast3YearsQuarters()
+  const allAnnualPeriods = generatePast3Years()
 
   const loadData = useCallback(async () => {
     try {
@@ -380,41 +392,87 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
       </header>
 
       <div className="max-w-7xl mx-auto px-6 py-6 flex gap-6">
-        {/* Left sidebar: Quarter tabs */}
-        <div className="w-44 flex-shrink-0">
-          <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 px-2">季度选择</h3>
-          <div className="space-y-1 max-h-[calc(100vh-200px)] overflow-y-auto pr-1">
-            {allPeriods.map(p => {
-              const key = p.label
-              const hasDbData = dbQuarterByPeriod.has(key)
-              const hasUserData = userAnalysisByPeriod.has(key)
-              const hasData = hasDbData || hasUserData
-              const isSelected = selectedPeriod === key
-              const isProcessingPeriod = analyses.some(
-                a => a.processing && !a.processed && a.fiscal_year === p.year && a.fiscal_quarter === p.quarter
-              )
+        {/* Left sidebar: Period selector */}
+        <div className="w-48 flex-shrink-0">
+          {/* View mode toggle */}
+          <div className="flex bg-slate-100 rounded-lg p-0.5 mb-4">
+            <button
+              onClick={() => { setViewMode('quarterly'); setSelectedPeriod(null) }}
+              className={`flex-1 text-xs font-medium py-1.5 rounded-md transition-all ${
+                viewMode === 'quarterly' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              季度
+            </button>
+            <button
+              onClick={() => { setViewMode('annual'); setSelectedPeriod(null) }}
+              className={`flex-1 text-xs font-medium py-1.5 rounded-md transition-all ${
+                viewMode === 'annual' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              年度
+            </button>
+          </div>
 
-              return (
-                <button
-                  key={key}
-                  onClick={() => handlePeriodSelect(key)}
-                  className={`w-full text-left px-3 py-2 rounded-xl text-sm font-medium transition-all flex items-center justify-between ${
-                    isSelected
-                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25'
-                      : hasData
-                      ? 'bg-white text-slate-700 border border-slate-200 hover:border-blue-300 hover:text-blue-600'
-                      : 'text-slate-400 hover:bg-slate-100 hover:text-slate-600'
-                  }`}
-                >
-                  <span>{key}</span>
-                  <span className="flex items-center gap-1">
-                    {isProcessingPeriod && <Loader2 className="h-3 w-3 animate-spin" />}
+          <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 px-2">
+            {viewMode === 'quarterly' ? '季度选择' : '年度选择'}
+          </h3>
+          <div className="space-y-1 max-h-[calc(100vh-260px)] overflow-y-auto pr-1">
+            {viewMode === 'quarterly' ? (
+              allQuarterPeriods.map(p => {
+                const key = p.label
+                const hasDbData = dbQuarterByPeriod.has(key)
+                const hasUserData = userAnalysisByPeriod.has(key)
+                const hasData = hasDbData || hasUserData
+                const isSelected = selectedPeriod === key
+                const isProcessingPeriod = analyses.some(
+                  a => a.processing && !a.processed && a.fiscal_year === p.year && a.fiscal_quarter === p.quarter
+                )
+                return (
+                  <button
+                    key={key}
+                    onClick={() => handlePeriodSelect(key)}
+                    className={`w-full text-left px-3 py-2 rounded-xl text-sm font-medium transition-all flex items-center justify-between ${
+                      isSelected
+                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25'
+                        : hasData
+                        ? 'bg-white text-slate-700 border border-slate-200 hover:border-blue-300 hover:text-blue-600'
+                        : 'text-slate-400 hover:bg-slate-100 hover:text-slate-600'
+                    }`}
+                  >
+                    <span>{key}</span>
+                    <span className="flex items-center gap-1">
+                      {isProcessingPeriod && <Loader2 className="h-3 w-3 animate-spin" />}
+                      {hasData && !isSelected && <span className="h-2 w-2 rounded-full bg-green-400 flex-shrink-0" />}
+                      {hasUserData && !isSelected && <span className="h-2 w-2 rounded-full bg-purple-400 flex-shrink-0" title="含研报对比" />}
+                    </span>
+                  </button>
+                )
+              })
+            ) : (
+              allAnnualPeriods.map(p => {
+                const key = `FY ${p.year}`
+                const hasData = dbQuarters.some(dq => dq.fiscal_year === p.year) ||
+                  analyses.some(a => a.fiscal_year === p.year && a.processed && !a.error)
+                const isSelected = selectedPeriod === key
+                return (
+                  <button
+                    key={key}
+                    onClick={() => handlePeriodSelect(key)}
+                    className={`w-full text-left px-3 py-2 rounded-xl text-sm font-medium transition-all flex items-center justify-between ${
+                      isSelected
+                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25'
+                        : hasData
+                        ? 'bg-white text-slate-700 border border-slate-200 hover:border-blue-300 hover:text-blue-600'
+                        : 'text-slate-400 hover:bg-slate-100 hover:text-slate-600'
+                    }`}
+                  >
+                    <span>{key}</span>
                     {hasData && !isSelected && <span className="h-2 w-2 rounded-full bg-green-400 flex-shrink-0" />}
-                    {hasUserData && !isSelected && <span className="h-2 w-2 rounded-full bg-purple-400 flex-shrink-0" title="含研报对比" />}
-                  </span>
-                </button>
-              )
-            })}
+                  </button>
+                )
+              })
+            )}
           </div>
         </div>
 
