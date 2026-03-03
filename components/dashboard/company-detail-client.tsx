@@ -372,11 +372,18 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
     const timestamp = Date.now()
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
     const pathname = `uploads/${prefix}/${timestamp}_${safeName}`
-    const blob = await upload(pathname, file, {
-      access: 'public',
-      handleUploadUrl: '/api/blob/upload-token',
-    })
-    return { url: blob.url, pathname: blob.pathname, originalName: file.name }
+    try {
+      console.log(`[Upload] Starting blob upload: ${pathname} (${(file.size / 1024 / 1024).toFixed(1)}MB)`)
+      const blob = await upload(pathname, file, {
+        access: 'public',
+        handleUploadUrl: '/api/blob/upload-token',
+      })
+      console.log(`[Upload] Blob upload complete: ${blob.url}`)
+      return { url: blob.url, pathname: blob.pathname, originalName: file.name }
+    } catch (err: any) {
+      console.error(`[Upload] Blob upload failed:`, err)
+      throw new Error(`文件上传失败: ${err.message || '网络错误'}`)
+    }
   }
 
   // Upload research report → triggers comparison analysis with existing financial data
@@ -386,17 +393,21 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
     isSubmittingRef.current = true
     setUploadStatus('uploading')
     setUploadError('')
-    setUploadProgress('上传研报...')
+    setUploadProgress('正在上传研报到云端...')
 
     try {
       const uploadedResearch: UploadedFile[] = []
       for (let i = 0; i < researchFiles.length; i++) {
-        setUploadProgress(`上传研报 ${i + 1}/${researchFiles.length}`)
-        uploadedResearch.push(await uploadFileToBlob(researchFiles[i].file, 'research'))
+        setUploadProgress(`上传研报 ${i + 1}/${researchFiles.length}（${(researchFiles[i].file.size / 1024 / 1024).toFixed(1)}MB）`)
+        const uploadPromise = uploadFileToBlob(researchFiles[i].file, 'research')
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('上传超时（60秒），请检查网络后重试')), 60000)
+        )
+        uploadedResearch.push(await Promise.race([uploadPromise, timeoutPromise]))
       }
 
       setUploadStatus('analyzing')
-      setUploadProgress('AI正在客观对比财报与研报数据...')
+      setUploadProgress('AI正在客观对比财报与研报数据（约1-3分钟）...')
 
       const match = selectedPeriod.match(/(\d{4}) Q(\d)/)
       const year = match ? parseInt(match[1]) : new Date().getFullYear()
