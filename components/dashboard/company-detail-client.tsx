@@ -868,7 +868,7 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
                                 </span>
                               </div>
                               <p className="text-sm text-slate-800 leading-relaxed mb-2">
-                                <span className="bg-yellow-200/60 px-0.5 rounded">{c.summary}</span>
+                                {c.summary}
                               </p>
                               {c.original_quote && (
                                 <div className="mt-1.5 pt-1.5 border-t border-slate-100">
