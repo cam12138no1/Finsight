@@ -67,6 +67,11 @@ export async function ensureFetchedFinancialsTable(): Promise<void> {
   `
   await sql`CREATE INDEX IF NOT EXISTS idx_fetched_transcripts_symbol ON fetched_transcripts(symbol)`
 
+  // Ensure key_conclusions column exists (may be missing on older tables)
+  try {
+    await sql`ALTER TABLE fetched_transcripts ADD COLUMN IF NOT EXISTS key_conclusions JSONB`
+  } catch { /* column may already exist */ }
+
   await sql`
     CREATE TABLE IF NOT EXISTS fetched_financials (
       id SERIAL PRIMARY KEY,
