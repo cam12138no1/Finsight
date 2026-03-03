@@ -1288,7 +1288,7 @@ function TranscriptContent({ content, date, period, highlightSpeaker, highlightQ
               <div
                 key={idx}
                 className={`p-3 rounded-lg border ${isTarget ? 'border-yellow-300 ring-2 ring-yellow-100 bg-yellow-50/30' : 'bg-slate-50 border-slate-200'}`}
-                ref={el => { if (isTarget && el) setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100) }}
+                ref={el => { if (isTarget && el) setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100) }}
               >
                 <p className="text-sm leading-relaxed whitespace-pre-wrap text-slate-700">
                   {isTarget ? renderWithHighlight(para) : para}
@@ -1328,7 +1328,7 @@ function TranscriptContent({ content, date, period, highlightSpeaker, highlightQ
           <div
             key={idx}
             className={`p-3 rounded-lg border ${isTarget ? 'border-yellow-300 ring-2 ring-yellow-100 bg-white' : getColor(seg.speaker)}`}
-            ref={el => { if (isTarget && el) setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100) }}
+            ref={el => { if (isTarget && el) setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100) }}
           >
             <div className="flex items-center justify-between mb-1">
               <span className={`text-xs font-semibold ${isTarget ? 'text-yellow-800' : 'text-slate-600'}`}>{seg.speaker}</span>
