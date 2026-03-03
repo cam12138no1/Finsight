@@ -202,16 +202,18 @@ class AnalysisStore {
         const analyses: StoredAnalysis[] = []
         for (const blob of uniqueBlobs) {
           try {
-            const response = await fetch(blob.url)
+            const fetchUrl = (blob as any).downloadUrl || blob.url
+            const response = await fetch(fetchUrl)
             if (response.ok) {
               const analysis = await response.json() as StoredAnalysis
               
-              // 双重验证：确保数据确实属于该用户
               if (!analysis.user_id || analysis.user_id === userId) {
                 analyses.push(analysis)
               } else {
                 console.error(`[Store] Data corruption! File ${blob.pathname} has wrong user_id`)
               }
+            } else {
+              console.error(`[Store] Failed to fetch ${blob.pathname}: HTTP ${response.status}`)
             }
           } catch (e) {
             console.error(`[Store] Failed to fetch ${blob.pathname}:`, e)
@@ -258,7 +260,8 @@ class AnalysisStore {
         
         for (const blob of uniqueBlobs) {
           try {
-            const response = await fetch(blob.url)
+            const fetchUrl = (blob as any).downloadUrl || blob.url
+            const response = await fetch(fetchUrl)
             if (response.ok) {
               analyses.push(await response.json())
             }
@@ -342,7 +345,8 @@ class AnalysisStore {
           new Date(blob.uploadedAt) > new Date(latest.uploadedAt) ? blob : latest
         )
 
-        const response = await fetch(latestBlob.url)
+        const fetchUrl = (latestBlob as any).downloadUrl || latestBlob.url
+        const response = await fetch(fetchUrl)
         if (!response.ok) return undefined
 
         const analysis = await response.json() as StoredAnalysis
