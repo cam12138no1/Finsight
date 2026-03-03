@@ -361,41 +361,68 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
     if (validFiles.length > 0) setResearchFiles(prev => [...prev, ...validFiles])
   }
 
-  // Upload research report — single request handles everything server-side:
-  // upload PDF → extract text → fetch DB financial data → AI comparison → store result
+  // Extract text from PDF client-side using PDF.js
+  const extractPdfText = async (file: File): Promise<string> => {
+    const pdfjsLib = await import('pdfjs-dist')
+    pdfjsLib.GlobalWorkerOptions.workerSrc = ''
+
+    const arrayBuffer = await file.arrayBuffer()
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer, useSystemFonts: true }).promise
+    const pages: string[] = []
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i)
+      const content = await page.getTextContent()
+      const text = content.items.map((item: any) => item.str).join(' ')
+      pages.push(text)
+    }
+    return pages.join('\n\n')
+  }
+
+  // Research upload flow:
+  // 1. Extract PDF text client-side (no upload size limit)
+  // 2. Send text only to server (small payload)
+  // 3. Server: store in DB → fetch financial data → AI comparison → store result
   const handleResearchUpload = async () => {
     if (isSubmittingRef.current || researchFiles.length === 0 || !selectedPeriod) return
 
     isSubmittingRef.current = true
     setUploadStatus('uploading')
     setUploadError('')
-    setUploadProgress('正在上传研报并提取文本...')
+    setUploadProgress('步骤 1/3：正在提取研报文本...')
 
     try {
+      // Step 1: Extract text from PDF client-side
+      const researchText = await extractPdfText(researchFiles[0].file)
+      if (!researchText || researchText.length < 100) {
+        throw new Error('研报PDF文本提取失败，请确认文件内容正确')
+      }
+      console.log(`[Research] Extracted ${researchText.length} chars from PDF`)
+
+      // Step 2: Send text to server
+      setUploadStatus('analyzing')
+      setUploadProgress(`步骤 2/3：已提取${Math.round(researchText.length / 1000)}K字符，AI正在对比分析（约1-3分钟）...`)
+
       const match = selectedPeriod.match(/(\d{4}) Q(\d)/)
       const year = match ? parseInt(match[1]) : new Date().getFullYear()
       const quarter = match ? parseInt(match[2]) : 4
       const requestId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-
-      // Single request — server handles everything
-      const formData = new FormData()
-      formData.append('file', researchFiles[0].file)
-      formData.append('symbol', symbol)
-      formData.append('category', category || 'AI_APPLICATION')
-      formData.append('fiscalYear', year.toString())
-      formData.append('fiscalQuarter', quarter.toString())
-      formData.append('requestId', requestId)
-
-      setUploadStatus('analyzing')
-      setUploadProgress(`上传研报 → 提取文本 → 对比分析中（约1-3分钟）...`)
 
       const controller = new AbortController()
       const timeout = setTimeout(() => controller.abort(), 290000)
 
       const response = await fetch('/api/upload-research', {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
         signal: controller.signal,
+        body: JSON.stringify({
+          researchText,
+          fileName: researchFiles[0].file.name,
+          symbol,
+          category: category || 'AI_APPLICATION',
+          fiscalYear: year,
+          fiscalQuarter: quarter,
+          requestId,
+        }),
       })
       clearTimeout(timeout)
 
@@ -404,7 +431,8 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
         throw new Error(result.error || '对比分析失败')
       }
 
-      setUploadProgress('分析完成，正在加载结果...')
+      // Step 3: Complete
+      setUploadProgress('步骤 3/3：分析完成，加载结果...')
       setUploadStatus('success')
       toast({ title: '对比分析完成', description: '研报与财报数据的客观对比已生成' })
 
@@ -417,7 +445,7 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
       }, 1500)
     } catch (error: any) {
       setUploadStatus('error')
-      const msg = error.name === 'AbortError' ? '分析超时（5分钟），请稍后刷新查看结果' : (error.message || '对比分析失败')
+      const msg = error.name === 'AbortError' ? '分析超时，请稍后刷新查看结果' : (error.message || '对比分析失败')
       setUploadError(msg)
       toast({ title: '分析失败', description: msg, variant: 'destructive' })
       isSubmittingRef.current = false

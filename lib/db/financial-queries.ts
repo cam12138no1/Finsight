@@ -67,10 +67,23 @@ export async function ensureFetchedFinancialsTable(): Promise<void> {
   `
   await sql`CREATE INDEX IF NOT EXISTS idx_fetched_transcripts_symbol ON fetched_transcripts(symbol)`
 
-  // Ensure key_conclusions column exists (may be missing on older tables)
   try {
     await sql`ALTER TABLE fetched_transcripts ADD COLUMN IF NOT EXISTS key_conclusions JSONB`
   } catch { /* column may already exist */ }
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS research_reports (
+      id SERIAL PRIMARY KEY,
+      user_id VARCHAR(50) NOT NULL,
+      symbol VARCHAR(20) NOT NULL,
+      fiscal_year INTEGER NOT NULL,
+      fiscal_quarter INTEGER NOT NULL,
+      research_text TEXT NOT NULL,
+      file_name VARCHAR(255),
+      analysis_result JSONB,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `
 
   await sql`
     CREATE TABLE IF NOT EXISTS fetched_financials (
@@ -400,6 +413,46 @@ export async function getTranscriptsWithoutConclusions(): Promise<FetchedTranscr
     ORDER BY fetched_at DESC
   `
   return result.rows as FetchedTranscript[]
+}
+
+// ============================================================
+// Research report queries
+// ============================================================
+
+export async function saveResearchReport(data: {
+  userId: string
+  symbol: string
+  fiscalYear: number
+  fiscalQuarter: number
+  researchText: string
+  fileName: string
+}): Promise<number> {
+  const result = await sql`
+    INSERT INTO research_reports (user_id, symbol, fiscal_year, fiscal_quarter, research_text, file_name)
+    VALUES (${data.userId}, ${data.symbol}, ${data.fiscalYear}, ${data.fiscalQuarter}, ${data.researchText}, ${data.fileName})
+    RETURNING id
+  `
+  return result.rows[0].id
+}
+
+export async function updateResearchAnalysis(id: number, analysisResult: any): Promise<void> {
+  await sql`
+    UPDATE research_reports
+    SET analysis_result = ${JSON.stringify(analysisResult)}::jsonb
+    WHERE id = ${id}
+  `
+}
+
+export async function getResearchReport(
+  userId: string, symbol: string, fiscalYear: number, fiscalQuarter: number
+): Promise<{ id: number; research_text: string; analysis_result: any } | null> {
+  const result = await sql`
+    SELECT id, research_text, analysis_result FROM research_reports
+    WHERE user_id = ${userId} AND symbol = ${symbol}
+      AND fiscal_year = ${fiscalYear} AND fiscal_quarter = ${fiscalQuarter}
+    ORDER BY created_at DESC LIMIT 1
+  `
+  return (result.rows[0] as any) || null
 }
 
 /**
