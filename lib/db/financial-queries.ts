@@ -401,3 +401,16 @@ export async function getTranscriptsWithoutConclusions(): Promise<FetchedTranscr
   `
   return result.rows as FetchedTranscript[]
 }
+
+/**
+ * Reset all key_conclusions to null (for re-extraction with updated prompt)
+ */
+export async function resetAllConclusions(): Promise<number> {
+  const result = await sql`
+    UPDATE fetched_transcripts
+    SET key_conclusions = NULL
+    WHERE key_conclusions IS NOT NULL
+    RETURNING id
+  `
+  return result.rowCount || 0
+}
