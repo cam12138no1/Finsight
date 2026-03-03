@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
         const truncated = t.content.length > 50000 ? t.content.slice(0, 50000) + '\n[TRUNCATED]' : t.content
 
         const response = await openrouter.chat({
-          model: 'google/gemini-3-pro-preview',
+          model: 'anthropic/claude-sonnet-4',
           messages: [
             { role: 'system', content: EXTRACTION_PROMPT },
             { role: 'user', content: `公司: ${t.symbol}\n季度: ${t.fiscal_year} Q${t.fiscal_quarter}\n日期: ${t.transcript_date}\n\n=== Transcript ===\n${truncated}` },
