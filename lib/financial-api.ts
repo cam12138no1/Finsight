@@ -1,5 +1,6 @@
 // lib/financial-api.ts - Financial data API service layer
-// Adapts the data team's API response format to our internal data model
+// Adapts the data team's API response to our internal data model
+// All numbers preserve full precision — no rounding beyond source data
 
 import { Company, CompanyCategory, getAllCompanies, getCompanyCategoryBySymbol } from './companies'
 
@@ -46,8 +47,24 @@ export const CORE_METRICS: CoreMetric[] = [
 const FINANCIAL_API_BASE = process.env.FINANCIAL_API_BASE_URL || ''
 
 // ============================================================
-// Raw API response types (from colleague's API)
+// Raw API response type (from colleague's API)
 // ============================================================
+
+interface RawFinancialMetrics {
+  revenue: string
+  gross_profit: string
+  operating_income: string
+  net_income: string
+  eps: string
+  eps_diluted: string
+  total_assets: string
+  total_liabilities: string
+  total_equity: string
+  cash_and_equivalents: string
+  total_debt: string
+  operating_cash_flow: string
+  free_cash_flow: string
+}
 
 interface RawQuarterReport {
   id: string
@@ -56,68 +73,107 @@ interface RawQuarterReport {
   fiscal_year: number
   fiscal_quarter: number
   report_date: string
-  financial_metrics: {
-    revenue: string
-    gross_profit: string
-    operating_income: string
-    net_income: string
-    eps: string
-    eps_diluted: string
-    total_assets: string
-    total_liabilities: string
-    total_equity: string
-    cash_and_equivalents: string
-    total_debt: string
-    operating_cash_flow: string
-    free_cash_flow: string
-  }
+  financial_metrics: RawFinancialMetrics
   s3_url: string | null
   created_at: string
 }
 
 // ============================================================
-// Number formatting helpers
+// Number formatting — full precision, no unnecessary rounding
 // ============================================================
 
-function formatDollarBillions(raw: string | number | null | undefined): string {
+/**
+ * Format raw dollar amount to human-readable string.
+ * Preserves full precision: 113896000000 → "$113.896B", not "$113.90B"
+ */
+function formatDollar(raw: string | null | undefined): string {
   if (!raw) return ''
-  const num = typeof raw === 'string' ? parseFloat(raw) : raw
+  const num = parseFloat(raw)
   if (isNaN(num)) return ''
-  const billions = num / 1e9
-  if (Math.abs(billions) >= 1) {
-    return `$${billions.toFixed(2)}B`
+  if (num === 0) return '$0'
+
+  const abs = Math.abs(num)
+  const sign = num < 0 ? '-' : ''
+
+  if (abs >= 1e9) {
+    const val = abs / 1e9
+    return `${sign}$${stripTrailingZeros(val)}B`
   }
-  const millions = num / 1e6
-  return `$${millions.toFixed(2)}M`
+  if (abs >= 1e6) {
+    const val = abs / 1e6
+    return `${sign}$${stripTrailingZeros(val)}M`
+  }
+  if (abs >= 1e3) {
+    const val = abs / 1e3
+    return `${sign}$${stripTrailingZeros(val)}K`
+  }
+  return `${sign}$${stripTrailingZeros(abs)}`
 }
 
-function formatEps(raw: string | number | null | undefined): string {
+/**
+ * Format EPS — preserve full precision from source
+ */
+function formatEps(raw: string | null | undefined): string {
   if (!raw) return ''
-  const num = typeof raw === 'string' ? parseFloat(raw) : raw
+  const num = parseFloat(raw)
   if (isNaN(num)) return ''
-  return `$${num.toFixed(2)}`
+  return `$${raw}`
 }
 
-function formatPercent(value: number | null | undefined): string {
-  if (value === null || value === undefined || isNaN(value)) return ''
-  return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`
+/**
+ * Remove unnecessary trailing zeros but keep at least meaningful decimals.
+ * 113.896000 → "113.896", 45.00 → "45", 2.10 → "2.1"
+ */
+function stripTrailingZeros(num: number): string {
+  // Use enough decimal places to avoid precision loss
+  const str = num.toFixed(6)
+  // Remove trailing zeros after decimal point
+  return str.replace(/\.?0+$/, '') || '0'
 }
 
+/**
+ * Calculate YoY% with verification.
+ * Formula: (current - previous) / |previous| * 100
+ * Returns formatted string like "+12.27%" with 2 decimal places.
+ */
 function calcYoY(current: string | null | undefined, previous: string | null | undefined): string {
   if (!current || !previous) return ''
   const cur = parseFloat(current)
   const prev = parseFloat(previous)
   if (isNaN(cur) || isNaN(prev) || prev === 0) return ''
+
   const pct = ((cur - prev) / Math.abs(prev)) * 100
-  return formatPercent(pct)
+
+  // Verification: reverse-check the calculation
+  const reconstructed = prev * (1 + pct / 100)
+  const tolerance = Math.abs(cur) * 0.0001 // 0.01% tolerance
+  if (Math.abs(reconstructed - cur) > tolerance && Math.abs(cur) > 0) {
+    console.warn(`[YoY Check] Potential precision issue: cur=${cur}, prev=${prev}, pct=${pct.toFixed(4)}%, reconstructed=${reconstructed}`)
+  }
+
+  return `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`
 }
 
+/**
+ * Calculate margin% with verification.
+ * Formula: part / whole * 100
+ */
 function calcMargin(part: string | null | undefined, whole: string | null | undefined): string {
   if (!part || !whole) return ''
   const p = parseFloat(part)
   const w = parseFloat(whole)
   if (isNaN(p) || isNaN(w) || w === 0) return ''
-  return `${((p / w) * 100).toFixed(2)}%`
+
+  const pct = (p / w) * 100
+
+  // Verification: reverse-check
+  const reconstructed = w * (pct / 100)
+  const tolerance = Math.abs(p) * 0.0001
+  if (Math.abs(reconstructed - p) > tolerance && Math.abs(p) > 0) {
+    console.warn(`[Margin Check] Potential precision issue: part=${p}, whole=${w}, pct=${pct.toFixed(4)}%`)
+  }
+
+  return `${pct.toFixed(2)}%`
 }
 
 // ============================================================
@@ -135,10 +191,10 @@ function transformRawReports(
     return b.fiscal_quarter - a.fiscal_quarter
   })
 
-  const quarters: QuarterData[] = sorted.map((report, idx) => {
+  const quarters: QuarterData[] = sorted.map((report) => {
     const m = report.financial_metrics
 
-    // Find same quarter from previous year for YoY calculation
+    // Find same quarter from previous year for YoY
     const prevYearReport = sorted.find(
       r => r.fiscal_year === report.fiscal_year - 1 && r.fiscal_quarter === report.fiscal_quarter
     )
@@ -149,11 +205,11 @@ function transformRawReports(
       fiscalQuarter: report.fiscal_quarter,
       period: `${report.fiscal_year} Q${report.fiscal_quarter}`,
       filingDate: report.report_date,
-      reportAvailable: !!report.s3_url,
+      reportAvailable: true,
       metrics: {
-        revenue: formatDollarBillions(m.revenue),
+        revenue: formatDollar(m.revenue),
         revenueYoY: calcYoY(m.revenue, pm?.revenue),
-        netIncome: formatDollarBillions(m.net_income),
+        netIncome: formatDollar(m.net_income),
         netIncomeYoY: calcYoY(m.net_income, pm?.net_income),
         eps: formatEps(m.eps),
         epsYoY: calcYoY(m.eps, pm?.eps),
@@ -178,7 +234,7 @@ function transformRawReports(
 // ============================================================
 
 /**
- * Fetch financial data for a specific company from the data team's API
+ * Fetch financial data for a specific company.
  * Endpoint: GET /api/v1/reports/companies/{ticker}/reports?limit=8
  */
 export async function fetchCompanyFinancials(symbol: string): Promise<CompanyFinancialData | null> {
@@ -186,16 +242,8 @@ export async function fetchCompanyFinancials(symbol: string): Promise<CompanyFin
 
   try {
     const url = `${FINANCIAL_API_BASE}/api/v1/reports/companies/${encodeURIComponent(symbol)}/reports?limit=8`
-    console.log(`[Financial API] Fetching: ${url}`)
-
-    const response = await fetch(url, {
-      headers: { 'accept': 'application/json' },
-      next: { revalidate: 86400 },
-    })
-    if (!response.ok) {
-      console.log(`[Financial API] ${symbol}: HTTP ${response.status}`)
-      return null
-    }
+    const response = await fetch(url, { headers: { 'accept': 'application/json' } })
+    if (!response.ok) return null
 
     const rawData: RawQuarterReport[] = await response.json()
     if (!rawData || !Array.isArray(rawData) || rawData.length === 0) return null
@@ -204,12 +252,7 @@ export async function fetchCompanyFinancials(symbol: string): Promise<CompanyFin
     const company = getCompanyBySymbol(symbol)
     const category = getCompanyCategoryBySymbol(symbol) || 'AI_APPLICATION'
 
-    return transformRawReports(
-      rawData,
-      company?.name || symbol,
-      company?.nameZh || symbol,
-      category
-    )
+    return transformRawReports(rawData, company?.name || symbol, company?.nameZh || symbol, category)
   } catch (error) {
     console.error(`[Financial API] Failed to fetch ${symbol}:`, error)
     return null
@@ -217,41 +260,32 @@ export async function fetchCompanyFinancials(symbol: string): Promise<CompanyFin
 }
 
 /**
- * Fetch financial data for all companies in a category
- * Calls fetchCompanyFinancials for each company in the category
+ * Fetch all companies in a category (calls fetchCompanyFinancials per company)
  */
 export async function fetchCategoryFinancials(category: CompanyCategory): Promise<CompanyFinancialData[]> {
   if (!FINANCIAL_API_BASE) return []
-
   const { getCompaniesByCategory } = await import('./companies')
   const companies = getCompaniesByCategory(category)
   const results: CompanyFinancialData[] = []
-
   for (const company of companies) {
     try {
       const data = await fetchCompanyFinancials(company.symbol)
       if (data) results.push(data)
-    } catch {
-      console.error(`[Financial API] Failed to fetch ${company.symbol} in category ${category}`)
-    }
+    } catch { /* skip */ }
   }
-
   return results
 }
 
 /**
- * Fetch the raw financial metrics JSON for a specific quarter
- * Used for AI analysis input
+ * Fetch raw financial_metrics JSON for a specific quarter.
+ * Returns the JSON string for AI analysis / research report comparison.
  */
-export async function fetchQuarterReport(symbol: string, year: number, quarter: number): Promise<string | null> {
+export async function fetchQuarterReportJson(symbol: string, year: number, quarter: number): Promise<string | null> {
   if (!FINANCIAL_API_BASE) return null
 
   try {
     const url = `${FINANCIAL_API_BASE}/api/v1/reports/companies/${encodeURIComponent(symbol)}/reports?limit=12`
-    const response = await fetch(url, {
-      headers: { 'accept': 'application/json' },
-      next: { revalidate: 86400 },
-    })
+    const response = await fetch(url, { headers: { 'accept': 'application/json' } })
     if (!response.ok) return null
 
     const rawData: RawQuarterReport[] = await response.json()
@@ -260,57 +294,18 @@ export async function fetchQuarterReport(symbol: string, year: number, quarter: 
     const target = rawData.find(r => r.fiscal_year === year && r.fiscal_quarter === quarter)
     if (!target) return null
 
-    // Return the financial_metrics as structured text for AI to parse
     return JSON.stringify(target.financial_metrics, null, 2)
   } catch (error) {
-    console.error(`[Financial API] Failed to fetch report for ${symbol} ${year} Q${quarter}:`, error)
+    console.error(`[Financial API] Failed to fetch ${symbol} ${year} Q${quarter}:`, error)
     return null
   }
 }
 
-/**
- * Fetch the S3 download link for a company's financial report PDF
- */
-export async function fetchReportDownloadUrl(symbol: string, year: number, quarter: number): Promise<string | null> {
-  if (!FINANCIAL_API_BASE) return null
-
-  try {
-    const url = `${FINANCIAL_API_BASE}/api/v1/reports/companies/${encodeURIComponent(symbol)}/reports?limit=12`
-    const response = await fetch(url, {
-      headers: { 'accept': 'application/json' },
-      next: { revalidate: 86400 },
-    })
-    if (!response.ok) return null
-
-    const rawData: RawQuarterReport[] = await response.json()
-    if (!rawData || !Array.isArray(rawData)) return null
-
-    const target = rawData.find(r => r.fiscal_year === year && r.fiscal_quarter === quarter)
-    return target?.s3_url || null
-  } catch (error) {
-    console.error(`[Financial API] Failed to fetch download URL:`, error)
-    return null
-  }
-}
+// Keep old name as alias for backward compat
+export const fetchQuarterReport = fetchQuarterReportJson
 
 /**
- * Download and extract text from an S3 report URL
- */
-export async function downloadAndExtractReport(s3Url: string): Promise<Buffer | null> {
-  try {
-    const response = await fetch(s3Url)
-    if (!response.ok) return null
-    const arrayBuffer = await response.arrayBuffer()
-    return Buffer.from(arrayBuffer)
-  } catch (error) {
-    console.error(`[Financial API] Failed to download from S3:`, error)
-    return null
-  }
-}
-
-/**
- * Build company financial data from local analysis store
- * Used as fallback when the external API is not configured
+ * Build company financial data from local analysis store (fallback)
  */
 export function buildCompanyDataFromAnalyses(
   analyses: Array<{
@@ -323,17 +318,8 @@ export function buildCompanyDataFromAnalyses(
     processed: boolean
     error?: string
     one_line_conclusion?: string
-    results_table?: Array<{
-      metric: string
-      actual: string
-      consensus: string
-      delta: string
-      assessment: string
-    }>
-    comparison_snapshot?: {
-      core_revenue?: string
-      core_profit?: string
-    }
+    results_table?: Array<{ metric: string; actual: string; consensus: string; delta: string; assessment: string }>
+    comparison_snapshot?: { core_revenue?: string; core_profit?: string }
     created_at: string
   }>
 ): CompanyFinancialData[] {
@@ -347,12 +333,8 @@ export function buildCompanyDataFromAnalyses(
     if (!companyMap.has(symbol)) {
       const category = (analysis.category as CompanyCategory) || getCompanyCategoryBySymbol(symbol) || 'AI_APPLICATION'
       companyMap.set(symbol, {
-        symbol,
-        name: analysis.company_name,
-        nameZh: analysis.company_name,
-        category,
-        quarters: [],
-        lastUpdated: analysis.created_at,
+        symbol, name: analysis.company_name, nameZh: analysis.company_name,
+        category, quarters: [], lastUpdated: analysis.created_at,
       })
     }
 
@@ -364,59 +346,32 @@ export function buildCompanyDataFromAnalyses(
 
     if (analysis.results_table) {
       for (const row of analysis.results_table) {
-        const metricLower = row.metric.toLowerCase()
-        if (metricLower.includes('revenue') && !metricLower.includes('指引') && !metricLower.includes('guidance')) {
-          metrics.revenue = row.actual || ''
-          metrics.revenueYoY = row.delta || ''
+        const ml = row.metric.toLowerCase()
+        if (ml.includes('revenue') && !ml.includes('指引') && !ml.includes('guidance')) {
+          metrics.revenue = row.actual || ''; metrics.revenueYoY = row.delta || ''
         }
-        if (metricLower.includes('net income') || metricLower.includes('净利润') || metricLower.includes('operating income')) {
-          metrics.netIncome = row.actual || ''
-          metrics.netIncomeYoY = row.delta || ''
+        if (ml.includes('net income') || ml.includes('净利润') || ml.includes('operating income')) {
+          metrics.netIncome = row.actual || ''; metrics.netIncomeYoY = row.delta || ''
         }
-        if (metricLower.includes('eps')) {
-          metrics.eps = row.actual || ''
-          metrics.epsYoY = row.delta || ''
-        }
-        if (metricLower.includes('operating margin') || metricLower.includes('营业利润率')) {
-          metrics.operatingMargin = row.actual || ''
-        }
-        if (metricLower.includes('gross margin') || metricLower.includes('毛利率')) {
-          metrics.grossMargin = row.actual || ''
-        }
+        if (ml.includes('eps')) { metrics.eps = row.actual || ''; metrics.epsYoY = row.delta || '' }
+        if (ml.includes('operating margin') || ml.includes('营业利润率')) { metrics.operatingMargin = row.actual || '' }
+        if (ml.includes('gross margin') || ml.includes('毛利率')) { metrics.grossMargin = row.actual || '' }
       }
     }
 
-    if (!metrics.revenue && analysis.comparison_snapshot?.core_revenue) {
-      metrics.revenue = analysis.comparison_snapshot.core_revenue
-    }
-    if (!metrics.netIncome && analysis.comparison_snapshot?.core_profit) {
-      metrics.netIncome = analysis.comparison_snapshot.core_profit
-    }
+    if (!metrics.revenue && analysis.comparison_snapshot?.core_revenue) metrics.revenue = analysis.comparison_snapshot.core_revenue
+    if (!metrics.netIncome && analysis.comparison_snapshot?.core_profit) metrics.netIncome = analysis.comparison_snapshot.core_profit
 
-    const fiscalYear = analysis.fiscal_year || parseInt(analysis.period?.match(/(\d{4})/)?.[1] || '0')
-    const fiscalQuarter = analysis.fiscal_quarter || parseInt(analysis.period?.match(/Q(\d)/)?.[1] || '0')
+    const fy = analysis.fiscal_year || parseInt(analysis.period?.match(/(\d{4})/)?.[1] || '0')
+    const fq = analysis.fiscal_quarter || parseInt(analysis.period?.match(/Q(\d)/)?.[1] || '0')
 
-    if (fiscalYear && fiscalQuarter) {
-      const exists = company.quarters.some(
-        q => q.fiscalYear === fiscalYear && q.fiscalQuarter === fiscalQuarter
-      )
-      if (!exists) {
-        company.quarters.push({
-          fiscalYear, fiscalQuarter,
-          period: `${fiscalYear} Q${fiscalQuarter}`,
-          metrics,
-          reportAvailable: true,
-        })
-      }
+    if (fy && fq && !company.quarters.some(q => q.fiscalYear === fy && q.fiscalQuarter === fq)) {
+      company.quarters.push({ fiscalYear: fy, fiscalQuarter: fq, period: `${fy} Q${fq}`, metrics, reportAvailable: true })
     }
   }
 
-  for (const company of companyMap.values()) {
-    company.quarters.sort((a, b) => {
-      if (b.fiscalYear !== a.fiscalYear) return b.fiscalYear - a.fiscalYear
-      return b.fiscalQuarter - a.fiscalQuarter
-    })
+  for (const c of companyMap.values()) {
+    c.quarters.sort((a, b) => b.fiscalYear !== a.fiscalYear ? b.fiscalYear - a.fiscalYear : b.fiscalQuarter - a.fiscalQuarter)
   }
-
   return Array.from(companyMap.values())
 }

@@ -67,6 +67,16 @@ interface DbQuarter {
   period: string
   has_report_text: boolean
   analysis_result: any | null
+  // Formatted metrics from cron
+  revenue: string | null
+  revenue_yoy: string | null
+  net_income: string | null
+  net_income_yoy: string | null
+  eps: string | null
+  eps_yoy: string | null
+  operating_margin: string | null
+  gross_margin: string | null
+  filing_date: string | null
 }
 
 interface FileItem {
@@ -156,6 +166,15 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
             period: f.period || `${f.fiscal_year} Q${f.fiscal_quarter}`,
             has_report_text: !!f.report_text,
             analysis_result: f.analysis_result,
+            revenue: f.revenue,
+            revenue_yoy: f.revenue_yoy,
+            net_income: f.net_income,
+            net_income_yoy: f.net_income_yoy,
+            eps: f.eps,
+            eps_yoy: f.eps_yoy,
+            operating_margin: f.operating_margin,
+            gross_margin: f.gross_margin,
+            filing_date: f.filing_date,
           }))
         }
       }
@@ -515,12 +534,56 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
                 </div>
               )}
 
-              {/* DB has data but no analysis_result yet → show raw metrics */}
+              {/* DB has data but no AI analysis_result → show raw metrics table */}
               {hasFinancialData && !displayAnalysis && selectedDbQuarter && (
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-                  <h3 className="text-sm font-semibold text-blue-600 mb-4">财报核心指标（来自数据API）</h3>
-                  <p className="text-sm text-slate-500 mb-4">该季度财报数据已通过API获取，AI核心数据提取尚未完成。</p>
-                  <div className="text-xs text-slate-400">数据将在下次 Cron 任务运行时自动提取分析。</div>
+                  <h3 className="text-sm font-semibold text-blue-600 mb-4 flex items-center gap-2">
+                    <FileText className="h-4 w-4" />
+                    {selectedPeriod} 财报核心指标
+                  </h3>
+                  {selectedDbQuarter.filing_date && (
+                    <p className="text-xs text-slate-400 mb-4">财报日期：{selectedDbQuarter.filing_date}</p>
+                  )}
+                  <div className="overflow-x-auto rounded-xl border border-slate-200">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-slate-50">
+                          <th className="px-4 py-3 text-left font-semibold text-slate-600">指标</th>
+                          <th className="px-4 py-3 text-right font-semibold text-slate-600">数值</th>
+                          <th className="px-4 py-3 text-right font-semibold text-slate-600">同比变化</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {[
+                          { label: 'Revenue（营收）', value: selectedDbQuarter.revenue, yoy: selectedDbQuarter.revenue_yoy },
+                          { label: 'Net Income（净利润）', value: selectedDbQuarter.net_income, yoy: selectedDbQuarter.net_income_yoy },
+                          { label: 'EPS（每股收益）', value: selectedDbQuarter.eps, yoy: selectedDbQuarter.eps_yoy },
+                          { label: 'Operating Margin（营业利润率）', value: selectedDbQuarter.operating_margin, yoy: null },
+                          { label: 'Gross Margin（毛利率）', value: selectedDbQuarter.gross_margin, yoy: null },
+                        ].filter(r => r.value).map((row, idx) => (
+                          <tr key={idx} className="hover:bg-slate-50">
+                            <td className="px-4 py-3 font-medium text-slate-800">{row.label}</td>
+                            <td className="px-4 py-3 text-right font-mono text-slate-800">{row.value}</td>
+                            <td className="px-4 py-3 text-right">
+                              {row.yoy ? (
+                                <span className={`font-mono font-medium ${
+                                  row.yoy.startsWith('+') ? 'text-green-600' :
+                                  row.yoy.startsWith('-') ? 'text-red-600' : 'text-slate-600'
+                                }`}>
+                                  {row.yoy}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400">-</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-4">
+                    数据来源：数据API · 上传研报可查看与市场预期的客观数据对比
+                  </p>
                 </div>
               )}
 
