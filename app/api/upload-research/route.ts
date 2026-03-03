@@ -4,6 +4,7 @@ import { extractTextFromDocument } from '@/lib/document-parser'
 import { analyzeJsonFinancialData } from '@/lib/ai/analyzer'
 import { analysisStore } from '@/lib/store'
 import { checkRateLimit, createRateLimitHeaders } from '@/lib/ratelimit'
+import { put } from '@vercel/blob'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -11,19 +12,8 @@ export const maxDuration = 300
 /**
  * POST /api/upload-research
  *
- * Receives research report PDF as base64, extracts text server-side,
- * fetches financial data from DB, and runs AI comparison.
- *
- * Request body (JSON):
- * {
- *   fileBase64: string,      // PDF file as base64
- *   fileName: string,
- *   symbol: string,
- *   category: string,
- *   fiscalYear: number,
- *   fiscalQuarter: number,
- *   requestId: string,
- * }
+ * Receives research report PDF via FormData, uploads to Vercel Blob (private),
+ * extracts text server-side, then runs AI comparison with financial data from DB.
  */
 export async function POST(request: NextRequest) {
   const startTime = Date.now()
@@ -46,47 +36,61 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const body = await request.json()
-    const { fileBase64, fileName, symbol, category, fiscalYear, fiscalQuarter, requestId } = body
+    // Parse multipart form data
+    const formData = await request.formData()
+    const file = formData.get('file') as File | null
+    const symbol = formData.get('symbol') as string
+    const category = (formData.get('category') as string) || 'AI_APPLICATION'
+    const fiscalYear = parseInt(formData.get('fiscalYear') as string || '0')
+    const fiscalQuarter = parseInt(formData.get('fiscalQuarter') as string || '0')
+    const requestId = (formData.get('requestId') as string) || `research_${Date.now()}`
 
-    if (!fileBase64) {
-      return NextResponse.json({ error: '未收到研报文件数据' }, { status: 400 })
+    if (!file) {
+      return NextResponse.json({ error: '未收到研报文件' }, { status: 400 })
     }
     if (!symbol || !fiscalYear || !fiscalQuarter) {
       return NextResponse.json({ error: '缺少公司代码或季度信息' }, { status: 400 })
     }
 
-    // Decode base64 → Buffer → extract text
-    console.log(`[Research] [${sessionId}] Decoding PDF: ${fileName} (${Math.round(fileBase64.length / 1024)}KB base64)`)
-    const buffer = Buffer.from(fileBase64, 'base64')
-    const researchText = await extractTextFromDocument(buffer, fileName || 'research.pdf')
+    console.log(`[Research] [${sessionId}] Received: ${file.name} (${(file.size / 1024 / 1024).toFixed(1)}MB)`)
+
+    // Step 1: Upload PDF to Vercel Blob (private store)
+    console.log(`[Research] [${sessionId}] Uploading to Blob...`)
+    const timestamp = Date.now()
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+    const blobPath = `research/${symbol}/${timestamp}_${safeName}`
+
+    const blob = await put(blobPath, file, {
+      access: 'private',
+      contentType: file.type || 'application/pdf',
+    })
+    console.log(`[Research] [${sessionId}] Blob uploaded: ${blob.url}`)
+
+    // Step 2: Read file content and extract text
+    console.log(`[Research] [${sessionId}] Extracting text...`)
+    const arrayBuffer = await file.arrayBuffer()
+    const buffer = Buffer.from(arrayBuffer)
+    const researchText = await extractTextFromDocument(buffer, file.name)
 
     if (!researchText || researchText.length < 100) {
       return NextResponse.json({ error: '研报PDF文本提取失败，请确认文件内容正确' }, { status: 400 })
     }
+    console.log(`[Research] [${sessionId}] Extracted ${researchText.length} chars`)
 
-    console.log(`[Research] [${sessionId}] ${symbol} ${fiscalYear}Q${fiscalQuarter}: extracted ${researchText.length} chars`)
-
-    // Check duplicate
-    const existing = await analysisStore.getByRequestId(userId, requestId || `research_${Date.now()}`)
-    if (existing?.one_line_conclusion) {
-      return NextResponse.json({ success: true, analysis_id: existing.id, analysis: existing, duplicate: true })
-    }
-
-    // Step 1: Store research text in DB
-    console.log(`[Research] [${sessionId}] Storing research text in DB...`)
+    // Step 3: Store research text in DB
     if (process.env.DATABASE_URL) {
       try {
         const { saveResearchReport, ensureFetchedFinancialsTable } = await import('@/lib/db/financial-queries')
         await ensureFetchedFinancialsTable()
-        await saveResearchReport({ userId, symbol, fiscalYear, fiscalQuarter, researchText, fileName: fileName || 'research.pdf' })
+        await saveResearchReport({ userId, symbol, fiscalYear, fiscalQuarter, researchText, fileName: file.name })
+        console.log(`[Research] [${sessionId}] Saved to DB`)
       } catch (dbErr: any) {
         console.warn(`[Research] [${sessionId}] DB save warning:`, dbErr.message)
       }
     }
 
-    // Step 2: Get financial data from DB
-    console.log(`[Research] [${sessionId}] Fetching financial data from DB...`)
+    // Step 4: Get financial data from DB
+    console.log(`[Research] [${sessionId}] Fetching financial data...`)
     let financialText = ''
     try {
       const { getFetchedQuarter } = await import('@/lib/db/financial-queries')
@@ -102,7 +106,7 @@ export async function POST(request: NextRequest) {
         }, null, 2)
       }
     } catch (dbErr: any) {
-      console.error(`[Research] [${sessionId}] DB error:`, dbErr.message)
+      console.error(`[Research] [${sessionId}] DB read error:`, dbErr.message)
     }
 
     if (!financialText) {
@@ -110,40 +114,31 @@ export async function POST(request: NextRequest) {
     }
     console.log(`[Research] [${sessionId}] Financial data: ${financialText.length} chars`)
 
-    // Step 3: Get company info
+    // Step 5: Create processing record
     const { getCompanyBySymbol } = await import('@/lib/companies')
     const companyInfo = getCompanyBySymbol(symbol)
     const companyName = companyInfo?.name || symbol
     const period = `${fiscalYear} Q${fiscalQuarter}`
-    const finalRequestId = requestId || `research_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
-    // Step 4: Create processing record
-    const processingEntry = await analysisStore.addWithRequestId(userId, finalRequestId, {
-      company_name: companyName,
-      company_symbol: symbol,
-      report_type: '10-Q',
-      fiscal_year: fiscalYear,
-      fiscal_quarter: fiscalQuarter,
-      period,
-      category: category || undefined,
-      filing_date: new Date().toISOString().split('T')[0],
-      created_at: new Date().toISOString(),
-      processed: false,
-      processing: true,
+    const processingEntry = await analysisStore.addWithRequestId(userId, requestId, {
+      company_name: companyName, company_symbol: symbol, report_type: '10-Q',
+      fiscal_year: fiscalYear, fiscal_quarter: fiscalQuarter, period,
+      category, filing_date: new Date().toISOString().split('T')[0],
+      created_at: new Date().toISOString(), processed: false, processing: true,
       has_research_report: true,
     })
     processingId = processingEntry.id
 
-    // Step 5: AI comparison analysis
+    // Step 6: AI comparison
     console.log(`[Research] [${sessionId}] Starting AI comparison...`)
     const analysisResult = await analyzeJsonFinancialData(
       financialText,
       { company: companyName, symbol, period, fiscalYear, fiscalQuarter, category: category as any },
       researchText
     )
-    console.log(`[Research] [${sessionId}] AI analysis complete`)
+    console.log(`[Research] [${sessionId}] AI complete`)
 
-    // Step 6: Update record
+    // Step 7: Store result
     await analysisStore.update(userId, processingId, {
       processed: true, processing: false, has_research_report: true, ...analysisResult,
     })

@@ -152,7 +152,7 @@ class AnalysisStore {
         const blobPath = this.getUserPath(userId, requestId)
         
         await put(blobPath, JSON.stringify(storedAnalysis), {
-          access: 'public',
+          access: 'private',
           contentType: 'application/json',
         })
         

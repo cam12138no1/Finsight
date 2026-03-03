@@ -374,66 +374,39 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
     if (validFiles.length > 0) setResearchFiles(prev => [...prev, ...validFiles])
   }
 
-  // Read file as base64 for server upload
-  const readFileAsBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onload = () => {
-        const result = reader.result as string
-        const base64 = result.split(',')[1]
-        resolve(base64)
-      }
-      reader.onerror = () => reject(new Error('文件读取失败'))
-      reader.readAsDataURL(file)
-    })
-  }
-
-  // Research upload flow:
-  // 1. Read PDF as base64 in browser
-  // 2. Send to server → server extracts text with pdf-parse → runs AI comparison
+  // Research upload: FormData → server uploads to Blob + extracts text + AI analysis
   const handleResearchUpload = async () => {
     if (isSubmittingRef.current || researchFiles.length === 0 || !selectedPeriod) return
 
     isSubmittingRef.current = true
     setUploadStatus('uploading')
     setUploadError('')
+    setUploadProgress('步骤 1/3：上传研报到云端...')
 
     try {
-      const file = researchFiles[0].file
-      const fileSizeMB = file.size / 1024 / 1024
-
-      if (fileSizeMB > 3) {
-        throw new Error(`研报PDF过大（${fileSizeMB.toFixed(1)}MB），请压缩至3MB以内后重试`)
-      }
-
-      setUploadProgress('步骤 1/3：正在读取研报文件...')
-      const base64Data = await readFileAsBase64(file)
-      console.log(`[Research] File read: ${file.name} (${fileSizeMB.toFixed(1)}MB, base64: ${Math.round(base64Data.length / 1024)}KB)`)
-
-      setUploadStatus('analyzing')
-      setUploadProgress('步骤 2/3：AI正在提取文本并对比分析（约1-3分钟）...')
-
       const match = selectedPeriod.match(/(\d{4}) Q(\d)/)
       const year = match ? parseInt(match[1]) : new Date().getFullYear()
       const quarter = match ? parseInt(match[2]) : 4
       const requestId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+
+      const formData = new FormData()
+      formData.append('file', researchFiles[0].file)
+      formData.append('symbol', symbol)
+      formData.append('category', category || 'AI_APPLICATION')
+      formData.append('fiscalYear', year.toString())
+      formData.append('fiscalQuarter', quarter.toString())
+      formData.append('requestId', requestId)
+
+      setUploadStatus('analyzing')
+      setUploadProgress('步骤 2/3：上传完成，AI正在对比分析（约1-3分钟）...')
 
       const controller = new AbortController()
       const timeout = setTimeout(() => controller.abort(), 290000)
 
       const response = await fetch('/api/upload-research', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        body: formData,
         signal: controller.signal,
-        body: JSON.stringify({
-          fileBase64: base64Data,
-          fileName: file.name,
-          symbol,
-          category: category || 'AI_APPLICATION',
-          fiscalYear: year,
-          fiscalQuarter: quarter,
-          requestId,
-        }),
       })
       clearTimeout(timeout)
 
