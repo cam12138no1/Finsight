@@ -129,11 +129,11 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
   const [isLoading, setIsLoading] = useState(true)
   const [viewMode, setViewMode] = useState<ViewMode>('quarterly')
   const [selectedPeriod, setSelectedPeriod] = useState<string | null>(null)
+  const [viewTab, setViewTab] = useState<'financial' | 'comparison'>('financial')
 
-  // User-uploaded analysis for selected period
-  const [selectedAnalysis, setSelectedAnalysis] = useState<Analysis | null>(null)
-  const [fullAnalysis, setFullAnalysis] = useState<Analysis | null>(null)
-  const [isLoadingFull, setIsLoadingFull] = useState(false)
+  // Research comparison from DB
+  const [researchResult, setResearchResult] = useState<{ id: number; analysis_result: any } | null>(null)
+  const [isLoadingResearch, setIsLoadingResearch] = useState(false)
 
   // DB-fetched quarters from cron
   const [dbQuarters, setDbQuarters] = useState<DbQuarter[]>([])
@@ -159,9 +159,6 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
   const [modalConclusion, setModalConclusion] = useState<Conclusion | null>(null)
   const [modalTranscriptContent, setModalTranscriptContent] = useState<string | null>(null)
   const [isLoadingModal, setIsLoadingModal] = useState(false)
-
-  // View tab: 'financial' (DB data) or 'comparison' (research comparison)
-  const [viewTab, setViewTab] = useState<'financial' | 'comparison'>('financial')
 
   // Research report upload state
   const [showResearchUpload, setShowResearchUpload] = useState(false)
@@ -249,57 +246,43 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
     return () => clearInterval(interval)
   }, [loadData, analyses])
 
-  // Build lookup maps
-  const userAnalysisByPeriod = new Map<string, Analysis>()
-  for (const a of analyses) {
-    if (a.processed && !a.error && a.fiscal_year && a.fiscal_quarter) {
-      const key = `${a.fiscal_year} Q${a.fiscal_quarter}`
-      if (!userAnalysisByPeriod.has(key)) userAnalysisByPeriod.set(key, a)
-    }
-  }
-
   const dbQuarterByPeriod = new Map<string, DbQuarter>()
   for (const dq of dbQuarters) {
     dbQuarterByPeriod.set(dq.period, dq)
   }
 
-  // Determine what data is available for the selected period
   const isAnnualView = selectedPeriod?.startsWith('FY ')
   const selectedFiscalYear = isAnnualView ? parseInt(selectedPeriod!.replace('FY ', '')) : null
-
-  // For annual view: collect all quarters of that year
   const annualDbQuarters = isAnnualView && selectedFiscalYear
     ? dbQuarters.filter(dq => dq.fiscal_year === selectedFiscalYear)
     : []
 
   const selectedDbQuarter = isAnnualView ? null : (selectedPeriod ? dbQuarterByPeriod.get(selectedPeriod) : null)
-  const selectedUserAnalysis = isAnnualView ? null : (selectedPeriod ? userAnalysisByPeriod.get(selectedPeriod) : null)
-  const hasFinancialData = !!selectedDbQuarter || !!selectedUserAnalysis || annualDbQuarters.length > 0
+  const hasFinancialData = !!selectedDbQuarter || annualDbQuarters.length > 0
+  const hasComparison = !!researchResult
 
-  const displayAnalysis = selectedUserAnalysis
-    ? fullAnalysis
-    : selectedDbQuarter?.analysis_result
-    ? selectedDbQuarter.analysis_result as Analysis
-    : null
-
-  const hasResearchReport = !!displayAnalysis?.has_research_report || !!displayAnalysis?.research_comparison
-
-  // Load full user analysis when selection changes
+  // Load research comparison from DB when period changes
   useEffect(() => {
-    if (!selectedUserAnalysis) {
-      setFullAnalysis(null)
+    if (!selectedPeriod || selectedPeriod.startsWith('FY ')) {
+      setResearchResult(null)
       return
     }
-    setIsLoadingFull(true)
-    fetch(`/api/reports/${selectedUserAnalysis.id}`)
+    const match = selectedPeriod.match(/(\d{4}) Q(\d)/)
+    if (!match) return
+
+    setIsLoadingResearch(true)
+    fetch(`/api/research-results?symbol=${encodeURIComponent(symbol)}&year=${match[1]}&quarter=${match[2]}`)
       .then(res => res.json())
       .then(data => {
-        const analysisData = data.report || data.analysis
-        if (analysisData) setFullAnalysis(analysisData)
+        if (data.report?.analysis_result) {
+          setResearchResult({ id: data.report.id, analysis_result: data.report.analysis_result })
+        } else {
+          setResearchResult(null)
+        }
       })
-      .catch(err => console.error('Failed to load full analysis:', err))
-      .finally(() => setIsLoadingFull(false))
-  }, [selectedUserAnalysis?.id])
+      .catch(() => setResearchResult(null))
+      .finally(() => setIsLoadingResearch(false))
+  }, [selectedPeriod, symbol])
 
   // Load transcript conclusions when a quarterly period is selected
   useEffect(() => {
@@ -354,8 +337,6 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
 
   const handlePeriodSelect = (periodLabel: string) => {
     setSelectedPeriod(periodLabel)
-    setSelectedAnalysis(userAnalysisByPeriod.get(periodLabel) || null)
-    setFullAnalysis(null)
     setShowResearchUpload(false)
     setViewTab('financial')
     setModalConclusion(null)
@@ -423,14 +404,25 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
       setUploadStatus('success')
       toast({ title: '对比分析完成', description: '研报与财报数据的客观对比已生成' })
 
+      // Reload research result from DB
+      const m2 = selectedPeriod?.match(/(\d{4}) Q(\d)/)
+      if (m2) {
+        try {
+          const rr = await fetch(`/api/research-results?symbol=${encodeURIComponent(symbol)}&year=${m2[1]}&quarter=${m2[2]}`)
+          const rd = await rr.json()
+          if (rd.report?.analysis_result) {
+            setResearchResult({ id: rd.report.id, analysis_result: rd.report.analysis_result })
+          }
+        } catch {}
+      }
+
       setTimeout(() => {
         setResearchFiles([])
         setUploadStatus('idle')
         setShowResearchUpload(false)
         setViewTab('comparison')
         isSubmittingRef.current = false
-        loadData()
-      }, 1500)
+      }, 1000)
     } catch (error: any) {
       setUploadStatus('error')
       const msg = error.name === 'AbortError' ? '分析超时，请稍后刷新查看结果' : (error.message || '对比分析失败')
@@ -438,31 +430,6 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
       toast({ title: '分析失败', description: msg, variant: 'destructive' })
       isSubmittingRef.current = false
     }
-  }
-
-  const handleDeleteComparison = async () => {
-    if (!selectedUserAnalysis?.id) return
-    try {
-      const res = await fetch(`/api/upload-research?id=${encodeURIComponent(selectedUserAnalysis.id)}`, { method: 'DELETE' })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({ error: '删除失败' }))
-        throw new Error(data.error)
-      }
-      toast({ title: '已删除', description: '对比分析结果已删除' })
-      setViewTab('financial')
-      loadData()
-    } catch (err: any) {
-      toast({ title: '删除失败', description: err.message || '请重试', variant: 'destructive' })
-    }
-  }
-
-  const handleRegenerateComparison = async () => {
-    if (selectedUserAnalysis?.id) {
-      await fetch(`/api/upload-research?id=${encodeURIComponent(selectedUserAnalysis.id)}`, { method: 'DELETE' }).catch(() => {})
-      loadData()
-    }
-    setViewTab('financial')
-    setShowResearchUpload(true)
   }
 
   const isProcessing = uploadStatus === 'uploading' || uploadStatus === 'analyzing'
@@ -529,8 +496,7 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
               allQuarterPeriods.map(p => {
                 const key = p.label
                 const hasDbData = dbQuarterByPeriod.has(key)
-                const hasUserData = userAnalysisByPeriod.has(key)
-                const hasData = hasDbData || hasUserData
+                const hasData = hasDbData
                 const isSelected = selectedPeriod === key
                 const isProcessingPeriod = analyses.some(
                   a => a.processing && !a.processed && a.fiscal_year === p.year && a.fiscal_quarter === p.quarter
@@ -551,7 +517,6 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
                     <span className="flex items-center gap-1">
                       {isProcessingPeriod && <Loader2 className="h-3 w-3 animate-spin" />}
                       {hasData && !isSelected && <span className="h-2 w-2 rounded-full bg-green-400 flex-shrink-0" />}
-                      {hasUserData && !isSelected && <span className="h-2 w-2 rounded-full bg-purple-400 flex-shrink-0" title="含研报对比" />}
                     </span>
                   </button>
                 )
@@ -591,7 +556,7 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-4">
                   <h2 className="text-lg font-bold text-slate-800">{formatPeriodLabel(selectedPeriod, symbol)} 财报数据</h2>
-                  {hasFinancialData && selectedUserAnalysis && (
+                  {hasFinancialData && hasComparison && (
                     <div className="flex bg-slate-100 rounded-lg p-0.5">
                       <button
                         onClick={() => setViewTab('financial')}
@@ -706,13 +671,19 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
               )}
 
               {/* Analysis Content (comparison tab) */}
-              {hasFinancialData && selectedUserAnalysis && viewTab === 'comparison' && (
+              {hasFinancialData && hasComparison && viewTab === 'comparison' && (
                 <div className="space-y-4">
                   <div className="flex gap-2 justify-end">
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={handleDeleteComparison}
+                      onClick={async () => {
+                        if (!researchResult) return
+                        await fetch(`/api/upload-research?id=${researchResult.id}`, { method: 'DELETE' })
+                        setResearchResult(null)
+                        setViewTab('financial')
+                        toast({ title: '已删除', description: '对比结果已删除' })
+                      }}
                       className="text-red-600 border-red-200 hover:bg-red-50"
                     >
                       <Trash2 className="mr-1.5 h-3.5 w-3.5" />
@@ -721,7 +692,14 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={handleRegenerateComparison}
+                      onClick={async () => {
+                        if (researchResult) {
+                          await fetch(`/api/upload-research?id=${researchResult.id}`, { method: 'DELETE' })
+                          setResearchResult(null)
+                        }
+                        setViewTab('financial')
+                        setShowResearchUpload(true)
+                      }}
                       className="text-purple-600 border-purple-200 hover:bg-purple-50"
                     >
                       <Upload className="mr-1.5 h-3.5 w-3.5" />
@@ -729,14 +707,14 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
                     </Button>
                   </div>
                   <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
-                    {isLoadingFull || !displayAnalysis ? (
+                    {isLoadingResearch ? (
                       <div className="flex items-center justify-center py-20">
                         <Loader2 className="h-8 w-8 text-purple-500 animate-spin" />
                         <span className="ml-3 text-sm text-slate-500">加载对比分析结果...</span>
                       </div>
                     ) : (
                       <AnalysisView
-                        analysis={displayAnalysis}
+                        analysis={researchResult!.analysis_result as Analysis}
                         hasResearchReport={true}
                       />
                     )}
@@ -745,7 +723,7 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
               )}
 
               {/* Quarterly: DB has data → show full metrics (financial tab or no comparison available) */}
-              {!isAnnualView && hasFinancialData && selectedDbQuarter && (viewTab === 'financial' || !displayAnalysis) && (
+              {!isAnnualView && hasFinancialData && selectedDbQuarter && (viewTab === 'financial' || !hasComparison) && (
                 <DbQuarterDetailView quarter={selectedDbQuarter} allQuarters={dbQuarters} period={selectedPeriod || ''} />
               )}
 
@@ -825,7 +803,7 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
               )}
 
               {/* Earnings Call Key Conclusions — only on financial tab */}
-              {!isAnnualView && hasFinancialData && (viewTab === 'financial' || !selectedUserAnalysis) && (
+              {!isAnnualView && hasFinancialData && (viewTab === 'financial' || !hasComparison) && (
                 <div className="mt-6">
                   {isLoadingTranscript ? (
                     <div className="bg-white rounded-2xl border border-slate-200 p-4 flex items-center gap-3">

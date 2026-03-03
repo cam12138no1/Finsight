@@ -455,6 +455,28 @@ export async function getResearchReport(
   return (result.rows[0] as any) || null
 }
 
+export async function getResearchReportsByUser(userId: string): Promise<Array<{
+  id: number; symbol: string; fiscal_year: number; fiscal_quarter: number;
+  file_name: string; analysis_result: any; created_at: string;
+}>> {
+  const result = await sql`
+    SELECT id, symbol, fiscal_year, fiscal_quarter, file_name, analysis_result, created_at
+    FROM research_reports
+    WHERE user_id = ${userId} AND analysis_result IS NOT NULL
+    ORDER BY created_at DESC
+  `
+  return result.rows as any[]
+}
+
+export async function deleteResearchReport(id: number, userId: string): Promise<boolean> {
+  const result = await sql`
+    DELETE FROM research_reports
+    WHERE id = ${id} AND user_id = ${userId}
+    RETURNING id
+  `
+  return (result.rowCount || 0) > 0
+}
+
 /**
  * Reset all key_conclusions to null (for re-extraction with updated prompt)
  */
