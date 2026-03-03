@@ -42,8 +42,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'DATABASE_URL not configured' }, { status: 500 })
     }
 
-    const transcripts = await getTranscriptsWithoutConclusions()
-    console.log(`[Extract] Found ${transcripts.length} transcripts without conclusions`)
+    const allTranscripts = await getTranscriptsWithoutConclusions()
+    // Process max 5 per invocation to stay within 5-min timeout
+    const transcripts = allTranscripts.slice(0, 5)
+    console.log(`[Extract] Found ${allTranscripts.length} without conclusions, processing ${transcripts.length} this batch`)
 
     let processed = 0
     const errors: string[] = []
@@ -79,7 +81,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ success: true, processed, total: transcripts.length, errors: errors.length > 0 ? errors : undefined })
+    return NextResponse.json({ success: true, processed, batch_size: transcripts.length, remaining: allTranscripts.length - transcripts.length, errors: errors.length > 0 ? errors : undefined })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
