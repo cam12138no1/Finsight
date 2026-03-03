@@ -25,6 +25,13 @@ export interface FetchedFinancial {
   updated_at: Date
 }
 
+export interface TranscriptConclusion {
+  summary: string
+  speaker: string
+  category: 'guidance' | 'strategy' | 'risk' | 'investment' | 'performance' | 'other'
+  original_quote: string
+}
+
 export interface FetchedTranscript {
   id: number
   symbol: string
@@ -36,6 +43,7 @@ export interface FetchedTranscript {
   content_length: number
   word_count: number
   speakers: string[]
+  key_conclusions: TranscriptConclusion[] | null
   fetched_at: Date
 }
 
@@ -52,6 +60,7 @@ export async function ensureFetchedFinancialsTable(): Promise<void> {
       content_length INTEGER DEFAULT 0,
       word_count INTEGER DEFAULT 0,
       speakers TEXT[] DEFAULT ARRAY[]::TEXT[],
+      key_conclusions JSONB,
       fetched_at TIMESTAMP DEFAULT NOW(),
       UNIQUE(symbol, fiscal_year, fiscal_quarter)
     )
@@ -352,6 +361,38 @@ export async function getTranscriptsBySymbol(symbol: string): Promise<FetchedTra
     SELECT * FROM fetched_transcripts
     WHERE symbol = ${symbol}
     ORDER BY fiscal_year DESC, fiscal_quarter DESC
+  `
+  return result.rows as FetchedTranscript[]
+}
+
+/**
+ * Save AI-extracted key conclusions for a transcript
+ */
+export async function saveTranscriptConclusions(
+  symbol: string,
+  fiscalYear: number,
+  fiscalQuarter: number,
+  conclusions: TranscriptConclusion[]
+): Promise<void> {
+  await sql`
+    UPDATE fetched_transcripts
+    SET key_conclusions = ${JSON.stringify(conclusions)}::jsonb
+    WHERE symbol = ${symbol}
+      AND fiscal_year = ${fiscalYear}
+      AND fiscal_quarter = ${fiscalQuarter}
+  `
+}
+
+/**
+ * Get transcripts that have content but no key_conclusions yet
+ */
+export async function getTranscriptsWithoutConclusions(): Promise<FetchedTranscript[]> {
+  const result = await sql`
+    SELECT * FROM fetched_transcripts
+    WHERE content IS NOT NULL
+      AND content != ''
+      AND key_conclusions IS NULL
+    ORDER BY fetched_at DESC
   `
   return result.rows as FetchedTranscript[]
 }

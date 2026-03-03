@@ -32,7 +32,16 @@ export async function GET(request: NextRequest) {
 
     if (year && quarter) {
       const transcript = await getTranscript(symbol, parseInt(year), parseInt(quarter))
-      return NextResponse.json({ transcript, source: 'database' })
+      return NextResponse.json({
+        transcript: transcript ? {
+          ...transcript,
+          // Don't send full content by default — too large. Send conclusions + metadata.
+          content: undefined,
+          has_content: !!transcript.content,
+        } : null,
+        key_conclusions: transcript?.key_conclusions || null,
+        source: 'database',
+      })
     }
 
     const transcripts = await getTranscriptsBySymbol(symbol)

@@ -135,10 +135,27 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
   // DB-fetched quarters from cron
   const [dbQuarters, setDbQuarters] = useState<DbQuarter[]>([])
 
-  // Transcript state
-  const [transcript, setTranscript] = useState<{ content: string; transcript_date: string; speakers: string[] } | null>(null)
+  // Transcript conclusions state
+  interface TranscriptMeta {
+    transcript_date: string
+    speakers: string[]
+    word_count: number
+    has_content: boolean
+  }
+  interface Conclusion {
+    summary: string
+    speaker: string
+    category: string
+    original_quote: string
+  }
+  const [transcriptMeta, setTranscriptMeta] = useState<TranscriptMeta | null>(null)
+  const [keyConclusions, setKeyConclusions] = useState<Conclusion[]>([])
   const [isLoadingTranscript, setIsLoadingTranscript] = useState(false)
-  const [showTranscript, setShowTranscript] = useState(false)
+
+  // Modal state for showing original transcript context
+  const [modalConclusion, setModalConclusion] = useState<Conclusion | null>(null)
+  const [modalTranscriptContent, setModalTranscriptContent] = useState<string | null>(null)
+  const [isLoadingModal, setIsLoadingModal] = useState(false)
 
   // Research report upload state
   const [showResearchUpload, setShowResearchUpload] = useState(false)
@@ -275,10 +292,11 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
       .finally(() => setIsLoadingFull(false))
   }, [selectedUserAnalysis?.id])
 
-  // Load transcript when a quarterly period is selected
+  // Load transcript conclusions when a quarterly period is selected
   useEffect(() => {
     if (!selectedPeriod || selectedPeriod.startsWith('FY ')) {
-      setTranscript(null)
+      setTranscriptMeta(null)
+      setKeyConclusions([])
       return
     }
     const match = selectedPeriod.match(/(\d{4}) Q(\d)/)
@@ -288,26 +306,50 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
     fetch(`/api/transcripts?symbol=${encodeURIComponent(symbol)}&year=${match[1]}&quarter=${match[2]}`)
       .then(res => res.json())
       .then(data => {
-        if (data.transcript?.content) {
-          setTranscript({
-            content: data.transcript.content,
+        if (data.transcript) {
+          setTranscriptMeta({
             transcript_date: data.transcript.transcript_date,
             speakers: data.transcript.speakers || [],
+            word_count: data.transcript.word_count || 0,
+            has_content: data.transcript.has_content,
           })
+          setKeyConclusions(data.key_conclusions || [])
         } else {
-          setTranscript(null)
+          setTranscriptMeta(null)
+          setKeyConclusions([])
         }
       })
-      .catch(() => setTranscript(null))
+      .catch(() => { setTranscriptMeta(null); setKeyConclusions([]) })
       .finally(() => setIsLoadingTranscript(false))
   }, [selectedPeriod, symbol])
+
+  // Load full transcript for modal
+  const openConclusionModal = async (conclusion: Conclusion) => {
+    setModalConclusion(conclusion)
+    if (modalTranscriptContent) return // already loaded
+
+    const match = selectedPeriod?.match(/(\d{4}) Q(\d)/)
+    if (!match) return
+
+    setIsLoadingModal(true)
+    try {
+      const res = await fetch(`/api/transcripts/content?symbol=${encodeURIComponent(symbol)}&year=${match[1]}&quarter=${match[2]}`)
+      const data = await res.json()
+      setModalTranscriptContent(data.content || null)
+    } catch {
+      setModalTranscriptContent(null)
+    } finally {
+      setIsLoadingModal(false)
+    }
+  }
 
   const handlePeriodSelect = (periodLabel: string) => {
     setSelectedPeriod(periodLabel)
     setSelectedAnalysis(userAnalysisByPeriod.get(periodLabel) || null)
     setFullAnalysis(null)
     setShowResearchUpload(false)
-    setShowTranscript(false)
+    setModalConclusion(null)
+    setModalTranscriptContent(null)
   }
 
   // File handlers
@@ -713,65 +755,129 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
                 </div>
               )}
 
-              {/* Earnings Call Transcript */}
+              {/* Earnings Call Key Conclusions */}
               {!isAnnualView && hasFinancialData && (
                 <div className="mt-6">
                   {isLoadingTranscript ? (
                     <div className="bg-white rounded-2xl border border-slate-200 p-4 flex items-center gap-3">
                       <Loader2 className="h-4 w-4 text-slate-400 animate-spin" />
-                      <span className="text-sm text-slate-500">加载电话会议记录...</span>
+                      <span className="text-sm text-slate-500">加载电话会议关键结论...</span>
                     </div>
-                  ) : transcript ? (
-                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
-                      <button
-                        onClick={() => setShowTranscript(!showTranscript)}
-                        className="w-full flex items-center justify-between p-5 hover:bg-slate-50 transition-colors rounded-2xl"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-violet-100 to-purple-100 flex items-center justify-center">
-                            <MessageSquareQuote className="h-4 w-4 text-violet-600" />
-                          </div>
-                          <div className="text-left">
-                            <h3 className="text-sm font-semibold text-slate-800">Earnings Call Transcript</h3>
-                            <p className="text-xs text-slate-500">
-                              {transcript.transcript_date} · {transcript.speakers.length} 位发言人 · {Math.round(transcript.content.length / 1000)}K 字符
-                            </p>
-                          </div>
+                  ) : transcriptMeta && keyConclusions.length > 0 ? (
+                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-violet-100 to-purple-100 flex items-center justify-center">
+                          <MessageSquareQuote className="h-4 w-4 text-violet-600" />
                         </div>
-                        {showTranscript
-                          ? <ChevronUp className="h-5 w-5 text-slate-400" />
-                          : <ChevronDown className="h-5 w-5 text-slate-400" />
-                        }
-                      </button>
+                        <div>
+                          <h3 className="text-sm font-semibold text-slate-800">Earnings Call 关键结论</h3>
+                          <p className="text-xs text-slate-500">
+                            {selectedPeriod} · {transcriptMeta.transcript_date} · 点击查看原文
+                          </p>
+                        </div>
+                      </div>
 
-                      {showTranscript && (
-                        <div className="px-5 pb-5 border-t border-slate-100">
-                          {/* Speakers list */}
-                          {transcript.speakers.length > 0 && (
-                            <div className="mt-4 mb-4 flex flex-wrap gap-1.5">
-                              {transcript.speakers.slice(0, 15).map(speaker => (
-                                <span key={speaker} className="text-xs bg-violet-50 text-violet-700 px-2 py-0.5 rounded-full border border-violet-100">
-                                  {speaker}
+                      <div className="space-y-2.5">
+                        {keyConclusions.map((c, idx) => {
+                          const categoryColors: Record<string, string> = {
+                            guidance: 'bg-amber-50 border-amber-200 hover:bg-amber-100',
+                            strategy: 'bg-blue-50 border-blue-200 hover:bg-blue-100',
+                            risk: 'bg-red-50 border-red-200 hover:bg-red-100',
+                            investment: 'bg-green-50 border-green-200 hover:bg-green-100',
+                            performance: 'bg-indigo-50 border-indigo-200 hover:bg-indigo-100',
+                            other: 'bg-slate-50 border-slate-200 hover:bg-slate-100',
+                          }
+                          const categoryLabels: Record<string, string> = {
+                            guidance: '业绩指引',
+                            strategy: '战略方向',
+                            risk: '风险提示',
+                            investment: '投资/CapEx',
+                            performance: '业绩表现',
+                            other: '其他',
+                          }
+                          const colorClass = categoryColors[c.category] || categoryColors.other
+
+                          return (
+                            <button
+                              key={idx}
+                              onClick={() => openConclusionModal(c)}
+                              className={`w-full text-left p-3.5 rounded-xl border transition-all cursor-pointer ${colorClass}`}
+                            >
+                              <div className="flex items-start justify-between gap-2 mb-1">
+                                <span className="text-xs font-semibold text-slate-500">
+                                  {categoryLabels[c.category] || c.category}
                                 </span>
-                              ))}
-                              {transcript.speakers.length > 15 && (
-                                <span className="text-xs text-slate-400">+{transcript.speakers.length - 15} more</span>
-                              )}
-                            </div>
-                          )}
-
-                          {/* Transcript content with speaker highlighting */}
-                          <div className="max-h-[600px] overflow-y-auto pr-2 space-y-3">
-                            <TranscriptContent
-                              content={transcript.content}
-                              date={transcript.transcript_date}
-                              period={selectedPeriod || ''}
-                            />
-                          </div>
-                        </div>
-                      )}
+                                <span className="text-[10px] text-slate-400 flex-shrink-0">
+                                  {c.speaker} · 点击查看原文
+                                </span>
+                              </div>
+                              <p className="text-sm text-slate-800 leading-relaxed">
+                                <span className="bg-yellow-200/60 px-0.5 rounded">{c.summary}</span>
+                              </p>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ) : transcriptMeta ? (
+                    <div className="bg-white rounded-2xl border border-slate-200 p-4">
+                      <div className="flex items-center gap-3">
+                        <MessageSquareQuote className="h-4 w-4 text-violet-400" />
+                        <span className="text-sm text-slate-500">
+                          Earnings Call 记录已入库（{transcriptMeta.transcript_date}），关键结论提取中...
+                        </span>
+                      </div>
                     </div>
                   ) : null}
+                </div>
+              )}
+
+              {/* Modal: Show original transcript context */}
+              {modalConclusion && (
+                <div className="fixed inset-0 z-50 overflow-hidden">
+                  <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setModalConclusion(null)} />
+                  <div className="absolute inset-6 md:inset-12 lg:inset-16 bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+                    <div className="flex-shrink-0 px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-violet-50 to-purple-50">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h2 className="text-lg font-bold text-slate-900">Earnings Call 原文</h2>
+                          <p className="text-sm text-slate-500">
+                            {selectedPeriod} · {transcriptMeta?.transcript_date} · 发言人: {modalConclusion.speaker}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => setModalConclusion(null)}
+                          className="h-9 w-9 rounded-lg hover:bg-slate-100 flex items-center justify-center"
+                        >
+                          <span className="text-xl text-slate-400">×</span>
+                        </button>
+                      </div>
+
+                      {/* Highlighted conclusion */}
+                      <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <p className="text-xs font-semibold text-yellow-700 mb-1">关键结论</p>
+                        <p className="text-sm text-slate-800 font-medium">{modalConclusion.summary}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto p-6">
+                      {isLoadingModal ? (
+                        <div className="flex items-center justify-center py-20">
+                          <Loader2 className="h-8 w-8 text-violet-500 animate-spin" />
+                        </div>
+                      ) : modalTranscriptContent ? (
+                        <TranscriptContent
+                          content={modalTranscriptContent}
+                          date={transcriptMeta?.transcript_date || ''}
+                          period={selectedPeriod || ''}
+                          highlightSpeaker={modalConclusion.speaker}
+                          highlightQuote={modalConclusion.original_quote}
+                        />
+                      ) : (
+                        <p className="text-slate-500 text-center py-10">无法加载原文内容</p>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -1003,7 +1109,9 @@ function DbQuarterDetailView({ quarter, allQuarters, period }: { quarter: DbQuar
 // Parses "Speaker: text" format and renders with attribution
 // ============================================================
 
-function TranscriptContent({ content, date, period }: { content: string; date: string; period: string }) {
+function TranscriptContent({ content, date, period, highlightSpeaker, highlightQuote }: {
+  content: string; date: string; period: string; highlightSpeaker?: string; highlightQuote?: string
+}) {
   // Parse transcript into speaker segments
   const segments: Array<{ speaker: string; text: string }> = []
   const lines = content.split('\n')
@@ -1057,14 +1165,23 @@ function TranscriptContent({ content, date, period }: { content: string; date: s
       </div>
       {segments.map((seg, idx) => {
         const colorClass = getSpeakerColor(seg.speaker)
+        const isHighlighted = highlightSpeaker && seg.speaker === highlightSpeaker &&
+          highlightQuote && seg.text.includes(highlightQuote.slice(0, 40))
         return (
-          <div key={idx} className={`p-3 rounded-lg border ${colorClass}`}>
+          <div
+            key={idx}
+            className={`p-3 rounded-lg border ${isHighlighted ? 'bg-yellow-50 border-yellow-300 ring-2 ring-yellow-200' : colorClass}`}
+            id={isHighlighted ? 'highlighted-quote' : undefined}
+            ref={el => { if (isHighlighted && el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }) }}
+          >
             <div className="flex items-center justify-between mb-1">
-              <span className="text-xs font-semibold">{seg.speaker}</span>
+              <span className={`text-xs font-semibold ${isHighlighted ? 'text-yellow-800' : ''}`}>
+                {isHighlighted ? '⭐ ' : ''}{seg.speaker}
+              </span>
               <span className="text-[10px] opacity-50">[{reference}]</span>
             </div>
             <p className="text-sm leading-relaxed whitespace-pre-wrap opacity-90">
-              {seg.text.length > 800 ? seg.text.slice(0, 800) + '...' : seg.text}
+              {seg.text.length > 1200 ? seg.text.slice(0, 1200) + '...' : seg.text}
             </p>
           </div>
         )
