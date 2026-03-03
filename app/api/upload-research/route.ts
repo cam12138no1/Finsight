@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateSession } from '@/lib/session-validator'
+import { extractTextFromDocument } from '@/lib/document-parser'
 import { analyzeJsonFinancialData } from '@/lib/ai/analyzer'
 import { analysisStore } from '@/lib/store'
 import { checkRateLimit, createRateLimitHeaders } from '@/lib/ratelimit'
@@ -10,14 +11,12 @@ export const maxDuration = 300
 /**
  * POST /api/upload-research
  *
- * Receives pre-extracted research report text (extracted client-side via PDF.js)
- * and compares it with financial data from the DB.
- *
- * Flow: receive text → store in DB → fetch financial data → AI comparison → store result
+ * Receives research report PDF as base64, extracts text server-side,
+ * fetches financial data from DB, and runs AI comparison.
  *
  * Request body (JSON):
  * {
- *   researchText: string,    // Pre-extracted text from PDF (client-side)
+ *   fileBase64: string,      // PDF file as base64
  *   fileName: string,
  *   symbol: string,
  *   category: string,
@@ -48,16 +47,25 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { researchText, fileName, symbol, category, fiscalYear, fiscalQuarter, requestId } = body
+    const { fileBase64, fileName, symbol, category, fiscalYear, fiscalQuarter, requestId } = body
 
-    if (!researchText || researchText.length < 100) {
-      return NextResponse.json({ error: '研报文本为空或过短，请确认PDF内容正确' }, { status: 400 })
+    if (!fileBase64) {
+      return NextResponse.json({ error: '未收到研报文件数据' }, { status: 400 })
     }
     if (!symbol || !fiscalYear || !fiscalQuarter) {
       return NextResponse.json({ error: '缺少公司代码或季度信息' }, { status: 400 })
     }
 
-    console.log(`[Research] [${sessionId}] ${symbol} ${fiscalYear}Q${fiscalQuarter}: ${fileName} (${researchText.length} chars)`)
+    // Decode base64 → Buffer → extract text
+    console.log(`[Research] [${sessionId}] Decoding PDF: ${fileName} (${Math.round(fileBase64.length / 1024)}KB base64)`)
+    const buffer = Buffer.from(fileBase64, 'base64')
+    const researchText = await extractTextFromDocument(buffer, fileName || 'research.pdf')
+
+    if (!researchText || researchText.length < 100) {
+      return NextResponse.json({ error: '研报PDF文本提取失败，请确认文件内容正确' }, { status: 400 })
+    }
+
+    console.log(`[Research] [${sessionId}] ${symbol} ${fiscalYear}Q${fiscalQuarter}: extracted ${researchText.length} chars`)
 
     // Check duplicate
     const existing = await analysisStore.getByRequestId(userId, requestId || `research_${Date.now()}`)

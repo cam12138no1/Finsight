@@ -374,46 +374,44 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
     if (validFiles.length > 0) setResearchFiles(prev => [...prev, ...validFiles])
   }
 
-  // Extract text from PDF client-side using PDF.js
-  const extractPdfText = async (file: File): Promise<string> => {
-    const pdfjsLib = await import('pdfjs-dist')
-    pdfjsLib.GlobalWorkerOptions.workerSrc = ''
-
-    const arrayBuffer = await file.arrayBuffer()
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer, useSystemFonts: true }).promise
-    const pages: string[] = []
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i)
-      const content = await page.getTextContent()
-      const text = content.items.map((item: any) => item.str).join(' ')
-      pages.push(text)
-    }
-    return pages.join('\n\n')
+  // Read file as base64 for server upload
+  const readFileAsBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const result = reader.result as string
+        const base64 = result.split(',')[1]
+        resolve(base64)
+      }
+      reader.onerror = () => reject(new Error('文件读取失败'))
+      reader.readAsDataURL(file)
+    })
   }
 
   // Research upload flow:
-  // 1. Extract PDF text client-side (no upload size limit)
-  // 2. Send text only to server (small payload)
-  // 3. Server: store in DB → fetch financial data → AI comparison → store result
+  // 1. Read PDF as base64 in browser
+  // 2. Send to server → server extracts text with pdf-parse → runs AI comparison
   const handleResearchUpload = async () => {
     if (isSubmittingRef.current || researchFiles.length === 0 || !selectedPeriod) return
 
     isSubmittingRef.current = true
     setUploadStatus('uploading')
     setUploadError('')
-    setUploadProgress('步骤 1/3：正在提取研报文本...')
 
     try {
-      // Step 1: Extract text from PDF client-side
-      const researchText = await extractPdfText(researchFiles[0].file)
-      if (!researchText || researchText.length < 100) {
-        throw new Error('研报PDF文本提取失败，请确认文件内容正确')
-      }
-      console.log(`[Research] Extracted ${researchText.length} chars from PDF`)
+      const file = researchFiles[0].file
+      const fileSizeMB = file.size / 1024 / 1024
 
-      // Step 2: Send text to server
+      if (fileSizeMB > 3) {
+        throw new Error(`研报PDF过大（${fileSizeMB.toFixed(1)}MB），请压缩至3MB以内后重试`)
+      }
+
+      setUploadProgress('步骤 1/3：正在读取研报文件...')
+      const base64Data = await readFileAsBase64(file)
+      console.log(`[Research] File read: ${file.name} (${fileSizeMB.toFixed(1)}MB, base64: ${Math.round(base64Data.length / 1024)}KB)`)
+
       setUploadStatus('analyzing')
-      setUploadProgress(`步骤 2/3：已提取${Math.round(researchText.length / 1000)}K字符，AI正在对比分析（约1-3分钟）...`)
+      setUploadProgress('步骤 2/3：AI正在提取文本并对比分析（约1-3分钟）...')
 
       const match = selectedPeriod.match(/(\d{4}) Q(\d)/)
       const year = match ? parseInt(match[1]) : new Date().getFullYear()
@@ -428,8 +426,8 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
         headers: { 'Content-Type': 'application/json' },
         signal: controller.signal,
         body: JSON.stringify({
-          researchText,
-          fileName: researchFiles[0].file.name,
+          fileBase64: base64Data,
+          fileName: file.name,
           symbol,
           category: category || 'AI_APPLICATION',
           fiscalYear: year,
@@ -444,7 +442,6 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
         throw new Error(result.error || '对比分析失败')
       }
 
-      // Step 3: Complete
       setUploadProgress('步骤 3/3：分析完成，加载结果...')
       setUploadStatus('success')
       toast({ title: '对比分析完成', description: '研报与财报数据的客观对比已生成' })
