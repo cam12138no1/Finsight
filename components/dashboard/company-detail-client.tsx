@@ -8,7 +8,7 @@ import {
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { toast } from '@/components/ui/toaster'
-import { upload } from '@vercel/blob/client'
+// Server-side upload replaces @vercel/blob/client which has compatibility issues
 import { getCompanyBySymbol, getCompanyCategoryBySymbol } from '@/lib/companies'
 import AnalysisView from './analysis-view-objective'
 
@@ -368,22 +368,22 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
     if (validFiles.length > 0) setResearchFiles(prev => [...prev, ...validFiles])
   }
 
-  const uploadFileToBlob = async (file: File, prefix: string): Promise<UploadedFile> => {
-    const timestamp = Date.now()
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-    const pathname = `uploads/${prefix}/${timestamp}_${safeName}`
-    try {
-      console.log(`[Upload] Starting blob upload: ${pathname} (${(file.size / 1024 / 1024).toFixed(1)}MB)`)
-      const blob = await upload(pathname, file, {
-        access: 'public',
-        handleUploadUrl: '/api/blob/upload-token',
-      })
-      console.log(`[Upload] Blob upload complete: ${blob.url}`)
-      return { url: blob.url, pathname: blob.pathname, originalName: file.name }
-    } catch (err: any) {
-      console.error(`[Upload] Blob upload failed:`, err)
-      throw new Error(`文件上传失败: ${err.message || '网络错误'}`)
+  const uploadFileToServer = async (file: File): Promise<UploadedFile> => {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const res = await fetch('/api/upload-research', {
+      method: 'POST',
+      body: formData,
+    })
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
+      throw new Error(err.error || '上传失败')
     }
+
+    const data = await res.json()
+    return { url: data.url, pathname: data.pathname, originalName: file.name }
   }
 
   // Upload research report → triggers comparison analysis with existing financial data
@@ -400,11 +400,7 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
       const uploadedResearch: UploadedFile[] = []
       for (let i = 0; i < researchFiles.length; i++) {
         setUploadProgress(`步骤 1/4：上传研报 ${i + 1}/${researchFiles.length}（${(researchFiles[i].file.size / 1024 / 1024).toFixed(1)}MB）`)
-        const uploadPromise = uploadFileToBlob(researchFiles[i].file, 'research')
-        const timeoutPromise = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('上传超时（120秒），请检查网络后重试')), 120000)
-        )
-        uploadedResearch.push(await Promise.race([uploadPromise, timeoutPromise]))
+        uploadedResearch.push(await uploadFileToServer(researchFiles[i].file))
       }
 
       // Step 2: Store to DB
