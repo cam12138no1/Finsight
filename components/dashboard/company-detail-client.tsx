@@ -595,7 +595,7 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
 
               {/* DB has data → show full metrics from API */}
               {hasFinancialData && !displayAnalysis && selectedDbQuarter && (
-                <DbQuarterDetailView quarter={selectedDbQuarter} period={selectedPeriod || ''} />
+                <DbQuarterDetailView quarter={selectedDbQuarter} allQuarters={dbQuarters} period={selectedPeriod || ''} />
               )}
 
               {/* No data at all */}
@@ -645,13 +645,23 @@ function formatDollarDisplay(raw: any): string {
   return `${sign}$${abs}`
 }
 
-function DbQuarterDetailView({ quarter, period }: { quarter: DbQuarter; period: string }) {
+function DbQuarterDetailView({ quarter, allQuarters, period }: { quarter: DbQuarter; allQuarters: DbQuarter[]; period: string }) {
   let parsed: any = null
   try {
     if (quarter.report_text) parsed = JSON.parse(quarter.report_text)
   } catch { /* not JSON */ }
 
+  // Find previous year same quarter for manual YoY calculation
+  let prevParsed: any = null
+  const prevQ = allQuarters.find(
+    q => q.fiscal_year === quarter.fiscal_year - 1 && q.fiscal_quarter === quarter.fiscal_quarter
+  )
+  try {
+    if (prevQ?.report_text) prevParsed = JSON.parse(prevQ.report_text)
+  } catch { /* not JSON */ }
+
   const fm = parsed?.financial_metrics
+  const pfm = prevParsed?.financial_metrics
   const segments = parsed?.segment_revenue?.segments
   const regions = parsed?.geographic_revenue?.regions
   const ratios = parsed?.financial_ratios
@@ -670,6 +680,23 @@ function DbQuarterDetailView({ quarter, period }: { quarter: DbQuarter; period: 
     if (isNaN(n)) return '-'
     const pct = n * 100
     return `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`
+  }
+
+  // Compute YoY from raw values when API doesn't provide it
+  const computeYoY = (curRaw: any, prevRaw: any): string => {
+    if (!curRaw || !prevRaw) return '-'
+    const c = typeof curRaw === 'string' ? parseFloat(curRaw) : Number(curRaw)
+    const p = typeof prevRaw === 'string' ? parseFloat(prevRaw) : Number(prevRaw)
+    if (isNaN(c) || isNaN(p) || p === 0) return '-'
+    const pct = ((c - p) / Math.abs(p)) * 100
+    return `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`
+  }
+
+  // Get YoY: prefer API growth_metrics, fall back to manual calc from prev year
+  const getYoY = (apiGrowthKey: string | null, fmKey: string): string => {
+    if (apiGrowthKey && growth?.[apiGrowthKey] != null) return fmtGrowth(growth[apiGrowthKey])
+    if (fm?.[fmKey] && pfm?.[fmKey]) return computeYoY(fm[fmKey], pfm[fmKey])
+    return '-'
   }
 
   const deltaColor = (v: string) => {
@@ -699,19 +726,21 @@ function DbQuarterDetailView({ quarter, period }: { quarter: DbQuarter; period: 
             </thead>
             <tbody className="divide-y divide-slate-100">
               {[
-                { label: 'Revenue（营收）', val: quarter.revenue, yoy: quarter.revenue_yoy },
-                { label: 'Gross Profit（毛利润）', val: fm ? formatDollarDisplay(fm.gross_profit) : null, yoy: growth ? fmtGrowth(growth.gross_profit_growth) : null },
-                { label: 'Operating Income（营业利润）', val: fm ? formatDollarDisplay(fm.operating_income) : null, yoy: growth ? fmtGrowth(growth.operating_income_growth) : null },
-                { label: 'EBITDA', val: fm ? formatDollarDisplay(fm.ebitda) : null, yoy: null },
-                { label: 'Net Income（净利润）', val: quarter.net_income, yoy: quarter.net_income_yoy },
-                { label: 'EPS（每股收益）', val: quarter.eps, yoy: quarter.eps_yoy },
-                { label: 'Operating Margin（营业利润率）', val: quarter.operating_margin, yoy: null },
-                { label: 'Gross Margin（毛利率）', val: quarter.gross_margin, yoy: null },
-                { label: 'Net Profit Margin（净利率）', val: ratios ? fmtPct(ratios.net_profit_margin) : null, yoy: null },
-                { label: 'R&D Expense（研发费用）', val: fm ? formatDollarDisplay(fm.research_and_development) : null, yoy: growth ? fmtGrowth(growth.rd_expense_growth) : null },
-                { label: 'CapEx（资本支出）', val: fm ? formatDollarDisplay(fm.capital_expenditure) : null, yoy: null },
-                { label: 'Free Cash Flow（自由现金流）', val: fm ? formatDollarDisplay(fm.free_cash_flow) : null, yoy: growth ? fmtGrowth(growth.fcf_growth) : null },
-                { label: 'Operating Cash Flow（经营现金流）', val: fm ? formatDollarDisplay(fm.operating_cash_flow) : null, yoy: null },
+                { label: 'Revenue（营收）', val: quarter.revenue, yoy: getYoY('revenue_growth', 'revenue') },
+                { label: 'Cost of Revenue（营业成本）', val: fm ? formatDollarDisplay(fm.cost_of_revenue) : null, yoy: getYoY(null, 'cost_of_revenue') },
+                { label: 'Gross Profit（毛利润）', val: fm ? formatDollarDisplay(fm.gross_profit) : null, yoy: getYoY('gross_profit_growth', 'gross_profit') },
+                { label: 'Operating Income（营业利润）', val: fm ? formatDollarDisplay(fm.operating_income) : null, yoy: getYoY('operating_income_growth', 'operating_income') },
+                { label: 'EBITDA', val: fm ? formatDollarDisplay(fm.ebitda) : null, yoy: getYoY(null, 'ebitda') },
+                { label: 'Net Income（净利润）', val: quarter.net_income, yoy: getYoY('net_income_growth', 'net_income') },
+                { label: 'EPS（每股收益）', val: quarter.eps, yoy: getYoY('eps_growth', 'eps') },
+                { label: 'Gross Margin（毛利率）', val: quarter.gross_margin, yoy: '-' },
+                { label: 'Operating Margin（营业利润率）', val: quarter.operating_margin, yoy: '-' },
+                { label: 'Net Profit Margin（净利率）', val: ratios ? fmtPct(ratios.net_profit_margin) : null, yoy: '-' },
+                { label: 'R&D Expense（研发费用）', val: fm ? formatDollarDisplay(fm.research_and_development) : null, yoy: getYoY('rd_expense_growth', 'research_and_development') },
+                { label: 'SG&A（销售及管理费用）', val: fm ? formatDollarDisplay(fm.selling_general_admin) : null, yoy: getYoY(null, 'selling_general_admin') },
+                { label: 'CapEx（资本支出）', val: fm ? formatDollarDisplay(fm.capital_expenditure) : null, yoy: getYoY(null, 'capital_expenditure') },
+                { label: 'Operating Cash Flow（经营现金流）', val: fm ? formatDollarDisplay(fm.operating_cash_flow) : null, yoy: getYoY(null, 'operating_cash_flow') },
+                { label: 'Free Cash Flow（自由现金流）', val: fm ? formatDollarDisplay(fm.free_cash_flow) : null, yoy: getYoY('fcf_growth', 'free_cash_flow') },
               ].filter(r => r.val && r.val !== '-').map((row, idx) => (
                 <tr key={idx} className="hover:bg-slate-50">
                   <td className="px-4 py-2.5 font-medium text-slate-800 text-sm">{row.label}</td>
