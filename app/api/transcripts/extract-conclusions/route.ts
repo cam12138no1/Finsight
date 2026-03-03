@@ -48,7 +48,16 @@ const DEEP_ANALYSIS_PROMPT = `你是一名资深买方分析师，负责从Earni
 - 所有数据引用必须来自提供的财报数据或管理层原话
 - 不得编造或推测未在材料中出现的信息
 
-输出JSON格式：{"conclusions": [...]}
+【输出格式】
+输出JSON，包含：
+1. overall_summary：3-4句话的电话会议整体结论（中文），概括管理层传递的核心信息和最值得关注的变化
+2. conclusions：6-10条具体发现的数组
+
+格式：
+{
+  "overall_summary": "本次电话会议核心信息：...",
+  "conclusions": [...]
+}
 `
 
 export async function POST(request: NextRequest) {
@@ -131,11 +140,22 @@ ${truncatedTranscript}
         const content = response.choices[0]?.message?.content
         if (!content) continue
 
-        const parsed = JSON.parse(content) as { conclusions: TranscriptConclusion[] }
+        const parsed = JSON.parse(content) as { overall_summary?: string; conclusions: TranscriptConclusion[] }
         if (parsed.conclusions && parsed.conclusions.length > 0) {
-          await saveTranscriptConclusions(t.symbol, t.fiscal_year, t.fiscal_quarter, parsed.conclusions)
+          // Prepend overall_summary as a special conclusion entry
+          const allConclusions: TranscriptConclusion[] = []
+          if (parsed.overall_summary) {
+            allConclusions.push({
+              summary: parsed.overall_summary,
+              speaker: '',
+              category: 'overall_summary' as any,
+              original_quote: '',
+            })
+          }
+          allConclusions.push(...parsed.conclusions)
+          await saveTranscriptConclusions(t.symbol, t.fiscal_year, t.fiscal_quarter, allConclusions)
           processed++
-          console.log(`[Extract] ${t.symbol} ${t.fiscal_year}Q${t.fiscal_quarter}: ${parsed.conclusions.length} deep conclusions`)
+          console.log(`[Extract] ${t.symbol} ${t.fiscal_year}Q${t.fiscal_quarter}: ${parsed.conclusions.length} conclusions + summary`)
         }
       } catch (err: any) {
         errors.push(`${t.symbol} ${t.fiscal_year}Q${t.fiscal_quarter}: ${err.message}`)

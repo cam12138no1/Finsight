@@ -146,16 +146,28 @@ export async function POST(request: NextRequest) {
     let financialText = ''
 
     if (useDbFinancialData && companySymbol && fiscalYear && fiscalQuarter) {
-      // Pull financial report text from database (cron-fetched data)
-      console.log(`[分析API] [${sessionId}] 从数据库获取财报文本: ${companySymbol} ${fiscalYear} Q${fiscalQuarter}`)
+      console.log(`[分析API] [${sessionId}] 从数据库获取财报数据: ${companySymbol} ${fiscalYear} Q${fiscalQuarter}`)
       try {
         const { getFetchedQuarter } = await import('@/lib/db/financial-queries')
         const dbRecord = await getFetchedQuarter(companySymbol, fiscalYear, fiscalQuarter)
         if (dbRecord?.report_text) {
           financialText = dbRecord.report_text
-          console.log(`[分析API] [${sessionId}] 从DB获取财报文本: ${financialText.length} 字符`)
+          console.log(`[分析API] [${sessionId}] 从DB获取财报JSON: ${financialText.length} 字符`)
+        } else if (dbRecord?.revenue || dbRecord?.net_income || dbRecord?.eps) {
+          // Fallback: build JSON from scalar columns
+          financialText = JSON.stringify({
+            revenue: dbRecord.revenue,
+            revenue_yoy: dbRecord.revenue_yoy,
+            net_income: dbRecord.net_income,
+            net_income_yoy: dbRecord.net_income_yoy,
+            eps: dbRecord.eps,
+            eps_yoy: dbRecord.eps_yoy,
+            operating_margin: dbRecord.operating_margin,
+            gross_margin: dbRecord.gross_margin,
+          }, null, 2)
+          console.log(`[分析API] [${sessionId}] 从DB标量字段构建JSON: ${financialText.length} 字符`)
         } else {
-          return NextResponse.json({ error: '该季度的财报原文尚未入库，无法进行研报对比' }, { status: 400 })
+          return NextResponse.json({ error: '该季度的财报数据尚未入库，请等待数据API同步后重试' }, { status: 400 })
         }
       } catch (dbErr: any) {
         console.error(`[分析API] [${sessionId}] DB读取失败:`, dbErr.message)

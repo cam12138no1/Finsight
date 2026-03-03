@@ -393,30 +393,39 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
     isSubmittingRef.current = true
     setUploadStatus('uploading')
     setUploadError('')
-    setUploadProgress('正在上传研报到云端...')
+    setUploadProgress('步骤 1/4：准备上传研报...')
 
     try {
+      // Step 1: Upload to Blob
       const uploadedResearch: UploadedFile[] = []
       for (let i = 0; i < researchFiles.length; i++) {
-        setUploadProgress(`上传研报 ${i + 1}/${researchFiles.length}（${(researchFiles[i].file.size / 1024 / 1024).toFixed(1)}MB）`)
+        setUploadProgress(`步骤 1/4：上传研报 ${i + 1}/${researchFiles.length}（${(researchFiles[i].file.size / 1024 / 1024).toFixed(1)}MB）`)
         const uploadPromise = uploadFileToBlob(researchFiles[i].file, 'research')
         const timeoutPromise = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('上传超时（60秒），请检查网络后重试')), 60000)
+          setTimeout(() => reject(new Error('上传超时（120秒），请检查网络后重试')), 120000)
         )
         uploadedResearch.push(await Promise.race([uploadPromise, timeoutPromise]))
       }
 
-      setUploadStatus('analyzing')
-      setUploadProgress('AI正在客观对比财报与研报数据（约1-3分钟）...')
+      // Step 2: Store to DB
+      setUploadProgress('步骤 2/4：研报已上传，正在读取数据库中的财报数据...')
 
       const match = selectedPeriod.match(/(\d{4}) Q(\d)/)
       const year = match ? parseInt(match[1]) : new Date().getFullYear()
       const quarter = match ? parseInt(match[2]) : 4
 
+      // Step 3: Send to AI for analysis
+      setUploadStatus('analyzing')
+      setUploadProgress('步骤 3/4：AI正在对比财报数据与研报内容（约1-3分钟）...')
+
       const requestId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      const controller = new AbortController()
+      const analyzeTimeout = setTimeout(() => controller.abort(), 280000) // 4.5min timeout
+
       const response = await fetch('/api/reports/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           financialFiles: [],
           researchFiles: uploadedResearch,
@@ -428,12 +437,15 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
           companySymbol: symbol,
         }),
       })
+      clearTimeout(analyzeTimeout)
 
       if (!response.ok) {
-        const result = await response.json()
+        const result = await response.json().catch(() => ({ error: `HTTP ${response.status}` }))
         throw new Error(result.error || '对比分析失败')
       }
 
+      // Step 4: Complete
+      setUploadProgress('步骤 4/4：分析完成，正在加载结果...')
       setUploadStatus('success')
       toast({ title: '对比分析完成', description: '研报与财报数据的客观对比已生成' })
 
@@ -446,8 +458,9 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
       }, 1500)
     } catch (error: any) {
       setUploadStatus('error')
-      setUploadError(error.message || '对比分析失败')
-      toast({ title: '分析失败', description: error.message, variant: 'destructive' })
+      const msg = error.name === 'AbortError' ? '分析超时，请稍后在列表中查看结果' : (error.message || '对比分析失败')
+      setUploadError(msg)
+      toast({ title: '分析失败', description: msg, variant: 'destructive' })
       isSubmittingRef.current = false
     }
   }
@@ -788,8 +801,17 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
                         </div>
                       </div>
 
+                      {/* Overall summary at the top */}
+                      {keyConclusions.find(c => c.category === 'overall_summary') && (
+                        <div className="mb-4 p-4 bg-gradient-to-r from-violet-50 to-purple-50 rounded-xl border border-violet-200">
+                          <p className="text-sm text-slate-800 leading-relaxed font-medium">
+                            {keyConclusions.find(c => c.category === 'overall_summary')?.summary}
+                          </p>
+                        </div>
+                      )}
+
                       <div className="space-y-2.5">
-                        {keyConclusions.map((c, idx) => {
+                        {keyConclusions.filter(c => c.category !== 'overall_summary').map((c, idx) => {
                           const categoryColors: Record<string, string> = {
                             guidance: 'bg-amber-50 border-amber-200 hover:bg-amber-100',
                             strategy: 'bg-blue-50 border-blue-200 hover:bg-blue-100',
