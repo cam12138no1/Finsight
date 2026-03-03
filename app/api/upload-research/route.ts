@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     const pathname = `uploads/research/${timestamp}_${safeName}`
 
     const blob = await put(pathname, file, {
-      access: 'public',
+      access: 'private',
       contentType: file.type || 'application/pdf',
     })
 
