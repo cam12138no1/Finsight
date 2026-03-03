@@ -1178,131 +1178,164 @@ function DbQuarterDetailView({ quarter, allQuarters, period }: { quarter: DbQuar
 function TranscriptContent({ content, date, period, highlightSpeaker, highlightQuote }: {
   content: string; date: string; period: string; highlightSpeaker?: string; highlightQuote?: string
 }) {
-  // Parse transcript into speaker segments
-  const segments: Array<{ speaker: string; text: string }> = []
-  const lines = content.split('\n')
-  let currentSpeaker = ''
-  let currentText = ''
-
-  for (const line of lines) {
-    const speakerMatch = line.match(/^([A-Z][a-zA-Z\s\-'.]{1,58}):\s(.*)/)
-    if (speakerMatch) {
-      if (currentSpeaker && currentText.trim()) {
-        segments.push({ speaker: currentSpeaker, text: currentText.trim() })
-      }
-      currentSpeaker = speakerMatch[1].trim()
-      currentText = speakerMatch[2]
-    } else {
-      currentText += '\n' + line
-    }
-  }
-  if (currentSpeaker && currentText.trim()) {
-    segments.push({ speaker: currentSpeaker, text: currentText.trim() })
-  }
-
-  // Color mapping for speakers
-  const speakerColors = new Map<string, string>()
-  const colorPalette = [
-    'bg-blue-50 border-blue-200 text-blue-800',
-    'bg-violet-50 border-violet-200 text-violet-800',
-    'bg-emerald-50 border-emerald-200 text-emerald-800',
-    'bg-amber-50 border-amber-200 text-amber-800',
-    'bg-rose-50 border-rose-200 text-rose-800',
-    'bg-cyan-50 border-cyan-200 text-cyan-800',
-    'bg-indigo-50 border-indigo-200 text-indigo-800',
-    'bg-orange-50 border-orange-200 text-orange-800',
-  ]
-  let colorIdx = 0
-
-  function getSpeakerColor(speaker: string): string {
-    if (!speakerColors.has(speaker)) {
-      speakerColors.set(speaker, colorPalette[colorIdx % colorPalette.length])
-      colorIdx++
-    }
-    return speakerColors.get(speaker)!
-  }
-
   const reference = `${period} Earnings Call, ${date}`
 
-  // Find the quote snippet to match (use first 50 chars for fuzzy matching)
-  const quoteSnippet = highlightQuote ? highlightQuote.slice(0, 50) : ''
+  // Normalize text for fuzzy matching: collapse whitespace, lowercase
+  const normalize = (s: string) => s.replace(/\s+/g, ' ').trim().toLowerCase()
 
-  // Render text with inline highlight for the matching quote
-  function renderTextWithHighlight(text: string, shouldHighlight: boolean): React.ReactNode {
-    if (!shouldHighlight || !highlightQuote) {
-      const display = text.length > 1200 ? text.slice(0, 1200) + '...' : text
-      return <span>{display}</span>
+  // Find the best match position of the quote in the full content
+  function findQuoteInText(text: string, quote: string): { start: number; end: number } | null {
+    if (!quote || quote.length < 10) return null
+    const normText = normalize(text)
+    const normQuote = normalize(quote)
+
+    // Try exact match first
+    const exactIdx = normText.indexOf(normQuote)
+    if (exactIdx !== -1) {
+      return { start: exactIdx, end: exactIdx + normQuote.length }
     }
 
-    // Try to find the quote in the text
-    const searchStr = highlightQuote.slice(0, 80)
-    const matchIdx = text.indexOf(searchStr)
-    if (matchIdx === -1) {
-      // Fallback: try shorter match
-      const shortSearch = highlightQuote.slice(0, 30)
-      const shortIdx = text.indexOf(shortSearch)
-      if (shortIdx === -1) {
-        return <span>{text.length > 1200 ? text.slice(0, 1200) + '...' : text}</span>
+    // Try progressively shorter prefixes (from 80 chars down to 15)
+    for (let len = Math.min(80, normQuote.length); len >= 15; len -= 5) {
+      const snippet = normQuote.slice(0, len)
+      const idx = normText.indexOf(snippet)
+      if (idx !== -1) {
+        return { start: idx, end: Math.min(idx + normQuote.length, normText.length) }
       }
-      const endIdx = Math.min(shortIdx + highlightQuote.length + 50, text.length)
-      return (
-        <>
-          <span>{text.slice(0, shortIdx)}</span>
-          <mark className="bg-yellow-200 px-0.5 rounded">{text.slice(shortIdx, endIdx)}</mark>
-          <span>{text.slice(endIdx)}</span>
-        </>
-      )
     }
 
-    const endIdx = Math.min(matchIdx + highlightQuote.length, text.length)
+    // Try finding any 15-char substring from the middle of the quote
+    for (let offset = 0; offset < normQuote.length - 15; offset += 10) {
+      const snippet = normQuote.slice(offset, offset + 15)
+      const idx = normText.indexOf(snippet)
+      if (idx !== -1) {
+        const start = Math.max(0, idx - offset)
+        return { start, end: Math.min(start + normQuote.length, normText.length) }
+      }
+    }
+
+    return null
+  }
+
+  // Render text with inline highlight
+  function renderWithHighlight(text: string): React.ReactNode {
+    if (!highlightQuote) return <span>{text}</span>
+
+    const match = findQuoteInText(text, highlightQuote)
+    if (!match) return <span>{text}</span>
+
+    // Map normalized positions back to original text (approximate)
+    const ratio = text.length / normalize(text).length
+    const start = Math.max(0, Math.floor(match.start * ratio))
+    const end = Math.min(text.length, Math.ceil(match.end * ratio))
+
     return (
       <>
-        <span>{text.slice(0, matchIdx)}</span>
-        <mark className="bg-yellow-200 px-0.5 rounded">{text.slice(matchIdx, endIdx)}</mark>
-        <span>{text.slice(endIdx)}</span>
+        <span>{text.slice(0, start)}</span>
+        <mark className="bg-yellow-200 px-0.5 rounded">{text.slice(start, end)}</mark>
+        <span>{text.slice(end)}</span>
       </>
     )
   }
 
-  // Fallback: if no speaker segments detected, show raw text with highlighting
+  // Parse into speaker segments
+  const segments: Array<{ speaker: string; text: string }> = []
+  const lines = content.split('\n')
+  let curSpeaker = ''
+  let curText = ''
+  for (const line of lines) {
+    const m = line.match(/^([A-Z][a-zA-Z\s\-'.]{1,58}):\s(.*)/)
+    if (m) {
+      if (curSpeaker && curText.trim()) segments.push({ speaker: curSpeaker, text: curText.trim() })
+      curSpeaker = m[1].trim()
+      curText = m[2]
+    } else {
+      curText += '\n' + line
+    }
+  }
+  if (curSpeaker && curText.trim()) segments.push({ speaker: curSpeaker, text: curText.trim() })
+
+  // Color palette
+  const colors = [
+    'bg-blue-50 border-blue-200', 'bg-violet-50 border-violet-200',
+    'bg-emerald-50 border-emerald-200', 'bg-amber-50 border-amber-200',
+    'bg-rose-50 border-rose-200', 'bg-cyan-50 border-cyan-200',
+  ]
+  const speakerColorMap = new Map<string, string>()
+  let ci = 0
+  const getColor = (s: string) => { if (!speakerColorMap.has(s)) { speakerColorMap.set(s, colors[ci++ % colors.length]) } return speakerColorMap.get(s)! }
+
+  // For no-speaker transcripts, split into paragraphs and search for quote
   if (segments.length === 0) {
+    const paragraphs = content.split(/\n\n+/).filter(p => p.trim())
+    // Find which paragraph contains the quote
+    let targetIdx = -1
+    if (highlightQuote) {
+      for (let i = 0; i < paragraphs.length; i++) {
+        if (findQuoteInText(paragraphs[i], highlightQuote)) { targetIdx = i; break }
+      }
+      // If not found in paragraphs, search the full content
+      if (targetIdx === -1 && findQuoteInText(content, highlightQuote)) { targetIdx = 0 }
+    }
+
     return (
       <>
-        <div className="text-xs text-slate-400 mb-3 pb-2 border-b border-slate-100">
-          来源：{reference}
-        </div>
-        <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
-          <p className="text-sm leading-relaxed whitespace-pre-wrap text-slate-700">
-            {renderTextWithHighlight(content, !!highlightQuote)}
-          </p>
+        <div className="text-xs text-slate-400 mb-3 pb-2 border-b border-slate-100">来源：{reference}</div>
+        <div className="space-y-3">
+          {paragraphs.map((para, idx) => {
+            const isTarget = idx === targetIdx
+            return (
+              <div
+                key={idx}
+                className={`p-3 rounded-lg border ${isTarget ? 'border-yellow-300 ring-2 ring-yellow-100 bg-yellow-50/30' : 'bg-slate-50 border-slate-200'}`}
+                ref={el => { if (isTarget && el) setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100) }}
+              >
+                <p className="text-sm leading-relaxed whitespace-pre-wrap text-slate-700">
+                  {isTarget ? renderWithHighlight(para) : para}
+                </p>
+              </div>
+            )
+          })}
         </div>
       </>
     )
+  }
+
+  // For speaker-format transcripts, find the best matching segment
+  let targetSegIdx = -1
+  if (highlightQuote) {
+    // Strategy 1: search in all segments by quote content (ignore speaker name mismatch)
+    for (let i = 0; i < segments.length; i++) {
+      if (findQuoteInText(segments[i].text, highlightQuote)) { targetSegIdx = i; break }
+    }
+    // Strategy 2: if speaker matches, prefer that segment even with weak text match
+    if (targetSegIdx === -1 && highlightSpeaker) {
+      for (let i = 0; i < segments.length; i++) {
+        const nameMatch = segments[i].speaker.toLowerCase().includes(highlightSpeaker.toLowerCase().split(' ')[0])
+        if (nameMatch && findQuoteInText(segments[i].text, highlightQuote.slice(0, 30) || '')) {
+          targetSegIdx = i; break
+        }
+      }
+    }
   }
 
   return (
     <>
-      <div className="text-xs text-slate-400 mb-3 pb-2 border-b border-slate-100">
-        来源：{reference}
-      </div>
+      <div className="text-xs text-slate-400 mb-3 pb-2 border-b border-slate-100">来源：{reference}</div>
       {segments.map((seg, idx) => {
-        const colorClass = getSpeakerColor(seg.speaker)
-        const containsQuote = !!quoteSnippet && seg.text.includes(quoteSnippet.slice(0, 30))
-        const isTargetSegment = !!highlightSpeaker && seg.speaker === highlightSpeaker && containsQuote
+        const isTarget = idx === targetSegIdx
         return (
           <div
             key={idx}
-            className={`p-3 rounded-lg border ${isTargetSegment ? 'border-yellow-300 ring-2 ring-yellow-100 bg-white' : colorClass}`}
-            ref={el => { if (isTargetSegment && el) setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100) }}
+            className={`p-3 rounded-lg border ${isTarget ? 'border-yellow-300 ring-2 ring-yellow-100 bg-white' : getColor(seg.speaker)}`}
+            ref={el => { if (isTarget && el) setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100) }}
           >
             <div className="flex items-center justify-between mb-1">
-              <span className={`text-xs font-semibold ${isTargetSegment ? 'text-yellow-800' : ''}`}>
-                {seg.speaker}
-              </span>
+              <span className={`text-xs font-semibold ${isTarget ? 'text-yellow-800' : 'text-slate-600'}`}>{seg.speaker}</span>
               <span className="text-[10px] opacity-50">[{reference}]</span>
             </div>
             <p className="text-sm leading-relaxed whitespace-pre-wrap opacity-90">
-              {renderTextWithHighlight(seg.text, isTargetSegment)}
+              {isTarget ? renderWithHighlight(seg.text) : seg.text}
             </p>
           </div>
         )
