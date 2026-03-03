@@ -100,7 +100,7 @@ export async function GET(request: NextRequest) {
 
         const url = `${FINANCIAL_API_BASE}/api/v1/reports/companies/${encodeURIComponent(company.symbol)}/reports?limit=8`
         console.log(`[Cron] ${company.symbol}: fetching...`)
-        const response = await fetch(url, { headers: { accept: 'application/json' } })
+        const response = await fetch(url, { headers: { accept: 'application/json' }, cache: 'no-store' })
 
         if (!response.ok) {
           details[company.symbol] = { status: 'http_error', code: response.status }

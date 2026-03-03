@@ -250,7 +250,7 @@ export async function fetchCompanyFinancials(symbol: string): Promise<CompanyFin
 
   try {
     const url = `${FINANCIAL_API_BASE}/api/v1/reports/companies/${encodeURIComponent(symbol)}/reports?limit=8`
-    const response = await fetch(url, { headers: { 'accept': 'application/json' } })
+    const response = await fetch(url, { headers: { 'accept': 'application/json' }, cache: 'no-store' })
     if (!response.ok) return null
 
     const rawData: RawQuarterReport[] = await response.json()
@@ -293,7 +293,7 @@ export async function fetchQuarterReportJson(symbol: string, year: number, quart
 
   try {
     const url = `${FINANCIAL_API_BASE}/api/v1/reports/companies/${encodeURIComponent(symbol)}/reports?limit=12`
-    const response = await fetch(url, { headers: { 'accept': 'application/json' } })
+    const response = await fetch(url, { headers: { 'accept': 'application/json' }, cache: 'no-store' })
     if (!response.ok) return null
 
     const rawData: RawQuarterReport[] = await response.json()
