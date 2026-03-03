@@ -1264,6 +1264,22 @@ function TranscriptContent({ content, date, period, highlightSpeaker, highlightQ
     )
   }
 
+  // Fallback: if no speaker segments detected, show raw text with highlighting
+  if (segments.length === 0) {
+    return (
+      <>
+        <div className="text-xs text-slate-400 mb-3 pb-2 border-b border-slate-100">
+          来源：{reference}
+        </div>
+        <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+          <p className="text-sm leading-relaxed whitespace-pre-wrap text-slate-700">
+            {renderTextWithHighlight(content, !!highlightQuote)}
+          </p>
+        </div>
+      </>
+    )
+  }
+
   return (
     <>
       <div className="text-xs text-slate-400 mb-3 pb-2 border-b border-slate-100">
@@ -1271,7 +1287,6 @@ function TranscriptContent({ content, date, period, highlightSpeaker, highlightQ
       </div>
       {segments.map((seg, idx) => {
         const colorClass = getSpeakerColor(seg.speaker)
-        // Match: same speaker AND text contains the quote snippet
         const containsQuote = !!quoteSnippet && seg.text.includes(quoteSnippet.slice(0, 30))
         const isTargetSegment = !!highlightSpeaker && seg.speaker === highlightSpeaker && containsQuote
         return (
