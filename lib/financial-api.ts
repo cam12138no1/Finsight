@@ -50,22 +50,6 @@ const FINANCIAL_API_BASE = process.env.FINANCIAL_API_BASE_URL || ''
 // Raw API response type (from colleague's API)
 // ============================================================
 
-interface RawFinancialMetrics {
-  revenue: string
-  gross_profit: string
-  operating_income: string
-  net_income: string
-  eps: string
-  eps_diluted: string
-  total_assets: string
-  total_liabilities: string
-  total_equity: string
-  cash_and_equivalents: string
-  total_debt: string
-  operating_cash_flow: string
-  free_cash_flow: string
-}
-
 interface RawQuarterReport {
   id: string
   company_id: string
@@ -73,7 +57,14 @@ interface RawQuarterReport {
   fiscal_year: number
   fiscal_quarter: number
   report_date: string
-  financial_metrics: RawFinancialMetrics
+  financial_metrics: Record<string, any>
+  segment_revenue?: { segments: Record<string, string> }
+  geographic_revenue?: { regions: Record<string, string> }
+  financial_ratios?: Record<string, any>
+  growth_metrics?: Record<string, any>
+  key_metrics?: Record<string, any>
+  analyst_estimates?: any
+  earnings_surprise?: any
   s3_url: string | null
   created_at: string
 }
@@ -180,6 +171,21 @@ function calcMargin(part: string | null | undefined, whole: string | null | unde
 // Transform raw API response → our data model
 // ============================================================
 
+function formatGrowthPct(raw: any): string {
+  if (raw === null || raw === undefined) return ''
+  const num = typeof raw === 'string' ? parseFloat(raw) : Number(raw)
+  if (isNaN(num)) return ''
+  const pct = num * 100
+  return `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`
+}
+
+function formatRatioPct(raw: any): string {
+  if (raw === null || raw === undefined) return ''
+  const num = typeof raw === 'string' ? parseFloat(raw) : Number(raw)
+  if (isNaN(num)) return ''
+  return `${(num * 100).toFixed(2)}%`
+}
+
 function transformRawReports(
   rawReports: RawQuarterReport[],
   companyName: string,
@@ -193,10 +199,12 @@ function transformRawReports(
 
   const quarters: QuarterData[] = sorted.map((report) => {
     const m = report.financial_metrics
+    const g = report.growth_metrics
+    const r = report.financial_ratios
 
-    // Find same quarter from previous year for YoY
+    // Prefer API-provided growth/ratios, fall back to manual calculation
     const prevYearReport = sorted.find(
-      r => r.fiscal_year === report.fiscal_year - 1 && r.fiscal_quarter === report.fiscal_quarter
+      rpt => rpt.fiscal_year === report.fiscal_year - 1 && rpt.fiscal_quarter === report.fiscal_quarter
     )
     const pm = prevYearReport?.financial_metrics
 
@@ -208,13 +216,13 @@ function transformRawReports(
       reportAvailable: true,
       metrics: {
         revenue: formatDollar(m.revenue),
-        revenueYoY: calcYoY(m.revenue, pm?.revenue),
+        revenueYoY: g?.revenue_growth != null ? formatGrowthPct(g.revenue_growth) : calcYoY(m.revenue, pm?.revenue),
         netIncome: formatDollar(m.net_income),
-        netIncomeYoY: calcYoY(m.net_income, pm?.net_income),
+        netIncomeYoY: g?.net_income_growth != null ? formatGrowthPct(g.net_income_growth) : calcYoY(m.net_income, pm?.net_income),
         eps: formatEps(m.eps),
-        epsYoY: calcYoY(m.eps, pm?.eps),
-        operatingMargin: calcMargin(m.operating_income, m.revenue),
-        grossMargin: calcMargin(m.gross_profit, m.revenue),
+        epsYoY: g?.eps_growth != null ? formatGrowthPct(g.eps_growth) : calcYoY(m.eps, pm?.eps),
+        operatingMargin: r?.operating_profit_margin != null ? formatRatioPct(r.operating_profit_margin) : calcMargin(m.operating_income, m.revenue),
+        grossMargin: r?.gross_profit_margin != null ? formatRatioPct(r.gross_profit_margin) : calcMargin(m.gross_profit, m.revenue),
       },
     }
   })

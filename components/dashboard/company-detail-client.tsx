@@ -67,7 +67,7 @@ interface DbQuarter {
   period: string
   has_report_text: boolean
   analysis_result: any | null
-  // Formatted metrics from cron
+  report_text: string | null
   revenue: string | null
   revenue_yoy: string | null
   net_income: string | null
@@ -178,6 +178,7 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
             period: f.period || `${f.fiscal_year} Q${f.fiscal_quarter}`,
             has_report_text: !!f.report_text,
             analysis_result: f.analysis_result,
+            report_text: f.report_text || null,
             revenue: f.revenue,
             revenue_yoy: f.revenue_yoy,
             net_income: f.net_income,
@@ -592,57 +593,9 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
                 </div>
               )}
 
-              {/* DB has data but no AI analysis_result → show raw metrics table */}
+              {/* DB has data → show full metrics from API */}
               {hasFinancialData && !displayAnalysis && selectedDbQuarter && (
-                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-                  <h3 className="text-sm font-semibold text-blue-600 mb-4 flex items-center gap-2">
-                    <FileText className="h-4 w-4" />
-                    {selectedPeriod} 财报核心指标
-                  </h3>
-                  {selectedDbQuarter.filing_date && (
-                    <p className="text-xs text-slate-400 mb-4">财报日期：{selectedDbQuarter.filing_date}</p>
-                  )}
-                  <div className="overflow-x-auto rounded-xl border border-slate-200">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="bg-slate-50">
-                          <th className="px-4 py-3 text-left font-semibold text-slate-600">指标</th>
-                          <th className="px-4 py-3 text-right font-semibold text-slate-600">数值</th>
-                          <th className="px-4 py-3 text-right font-semibold text-slate-600">同比变化</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {[
-                          { label: 'Revenue（营收）', value: selectedDbQuarter.revenue, yoy: selectedDbQuarter.revenue_yoy },
-                          { label: 'Net Income（净利润）', value: selectedDbQuarter.net_income, yoy: selectedDbQuarter.net_income_yoy },
-                          { label: 'EPS（每股收益）', value: selectedDbQuarter.eps, yoy: selectedDbQuarter.eps_yoy },
-                          { label: 'Operating Margin（营业利润率）', value: selectedDbQuarter.operating_margin, yoy: null },
-                          { label: 'Gross Margin（毛利率）', value: selectedDbQuarter.gross_margin, yoy: null },
-                        ].filter(r => r.value).map((row, idx) => (
-                          <tr key={idx} className="hover:bg-slate-50">
-                            <td className="px-4 py-3 font-medium text-slate-800">{row.label}</td>
-                            <td className="px-4 py-3 text-right font-mono text-slate-800">{row.value}</td>
-                            <td className="px-4 py-3 text-right">
-                              {row.yoy ? (
-                                <span className={`font-mono font-medium ${
-                                  row.yoy.startsWith('+') ? 'text-green-600' :
-                                  row.yoy.startsWith('-') ? 'text-red-600' : 'text-slate-600'
-                                }`}>
-                                  {row.yoy}
-                                </span>
-                              ) : (
-                                <span className="text-slate-400">-</span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  <p className="text-xs text-slate-400 mt-4">
-                    数据来源：数据API · 上传研报可查看与市场预期的客观数据对比
-                  </p>
-                </div>
+                <DbQuarterDetailView quarter={selectedDbQuarter} period={selectedPeriod || ''} />
               )}
 
               {/* No data at all */}
@@ -667,6 +620,174 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+// ============================================================
+// DB Quarter Detail View — shows full financial data from API
+// ============================================================
+
+function formatDollarDisplay(raw: any): string {
+  if (!raw && raw !== 0) return '-'
+  const num = typeof raw === 'string' ? parseFloat(raw) : Number(raw)
+  if (isNaN(num) || num === 0) return '-'
+  const abs = Math.abs(num)
+  const sign = num < 0 ? '-' : ''
+  if (abs >= 1e9) {
+    const val = abs / 1e9
+    return `${sign}$${val.toFixed(6).replace(/\.?0+$/, '')}B`
+  }
+  if (abs >= 1e6) {
+    const val = abs / 1e6
+    return `${sign}$${val.toFixed(6).replace(/\.?0+$/, '')}M`
+  }
+  return `${sign}$${abs}`
+}
+
+function DbQuarterDetailView({ quarter, period }: { quarter: DbQuarter; period: string }) {
+  let parsed: any = null
+  try {
+    if (quarter.report_text) parsed = JSON.parse(quarter.report_text)
+  } catch { /* not JSON */ }
+
+  const fm = parsed?.financial_metrics
+  const segments = parsed?.segment_revenue?.segments
+  const regions = parsed?.geographic_revenue?.regions
+  const ratios = parsed?.financial_ratios
+  const growth = parsed?.growth_metrics
+
+  const fmtPct = (v: any) => {
+    if (v === null || v === undefined) return '-'
+    const n = typeof v === 'string' ? parseFloat(v) : Number(v)
+    if (isNaN(n)) return '-'
+    return `${(n * 100).toFixed(2)}%`
+  }
+
+  const fmtGrowth = (v: any) => {
+    if (v === null || v === undefined) return '-'
+    const n = typeof v === 'string' ? parseFloat(v) : Number(v)
+    if (isNaN(n)) return '-'
+    const pct = n * 100
+    return `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`
+  }
+
+  const deltaColor = (v: string) => {
+    if (v.startsWith('+')) return 'text-green-600'
+    if (v.startsWith('-')) return 'text-red-500'
+    return 'text-slate-600'
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Core Metrics */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <h3 className="text-sm font-semibold text-blue-600 mb-1 flex items-center gap-2">
+          <FileText className="h-4 w-4" />
+          {period} 财报核心指标
+        </h3>
+        {quarter.filing_date && <p className="text-xs text-slate-400 mb-4">报告日期：{quarter.filing_date}</p>}
+
+        <div className="overflow-x-auto rounded-xl border border-slate-200">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-slate-50">
+                <th className="px-4 py-3 text-left font-semibold text-slate-600">指标</th>
+                <th className="px-4 py-3 text-right font-semibold text-slate-600">数值</th>
+                <th className="px-4 py-3 text-right font-semibold text-slate-600">同比 (YoY)</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {[
+                { label: 'Revenue（营收）', val: quarter.revenue, yoy: quarter.revenue_yoy },
+                { label: 'Gross Profit（毛利润）', val: fm ? formatDollarDisplay(fm.gross_profit) : null, yoy: growth ? fmtGrowth(growth.gross_profit_growth) : null },
+                { label: 'Operating Income（营业利润）', val: fm ? formatDollarDisplay(fm.operating_income) : null, yoy: growth ? fmtGrowth(growth.operating_income_growth) : null },
+                { label: 'EBITDA', val: fm ? formatDollarDisplay(fm.ebitda) : null, yoy: null },
+                { label: 'Net Income（净利润）', val: quarter.net_income, yoy: quarter.net_income_yoy },
+                { label: 'EPS（每股收益）', val: quarter.eps, yoy: quarter.eps_yoy },
+                { label: 'Operating Margin（营业利润率）', val: quarter.operating_margin, yoy: null },
+                { label: 'Gross Margin（毛利率）', val: quarter.gross_margin, yoy: null },
+                { label: 'Net Profit Margin（净利率）', val: ratios ? fmtPct(ratios.net_profit_margin) : null, yoy: null },
+                { label: 'R&D Expense（研发费用）', val: fm ? formatDollarDisplay(fm.research_and_development) : null, yoy: growth ? fmtGrowth(growth.rd_expense_growth) : null },
+                { label: 'CapEx（资本支出）', val: fm ? formatDollarDisplay(fm.capital_expenditure) : null, yoy: null },
+                { label: 'Free Cash Flow（自由现金流）', val: fm ? formatDollarDisplay(fm.free_cash_flow) : null, yoy: growth ? fmtGrowth(growth.fcf_growth) : null },
+                { label: 'Operating Cash Flow（经营现金流）', val: fm ? formatDollarDisplay(fm.operating_cash_flow) : null, yoy: null },
+              ].filter(r => r.val && r.val !== '-').map((row, idx) => (
+                <tr key={idx} className="hover:bg-slate-50">
+                  <td className="px-4 py-2.5 font-medium text-slate-800 text-sm">{row.label}</td>
+                  <td className="px-4 py-2.5 text-right font-mono text-slate-800">{row.val}</td>
+                  <td className="px-4 py-2.5 text-right">
+                    {row.yoy && row.yoy !== '-' ? (
+                      <span className={`font-mono font-medium ${deltaColor(row.yoy)}`}>{row.yoy}</span>
+                    ) : <span className="text-slate-300">-</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Segment Revenue */}
+      {segments && Object.keys(segments).length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+          <h3 className="text-sm font-semibold text-indigo-600 mb-4">分部收入</h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            {Object.entries(segments).map(([name, val]) => (
+              <div key={name} className="p-3 bg-indigo-50/50 rounded-xl border border-indigo-100">
+                <div className="text-xs text-indigo-600 font-medium mb-1">{name}</div>
+                <div className="text-sm font-semibold text-slate-800 font-mono">{formatDollarDisplay(val as string)}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Geographic Revenue */}
+      {regions && Object.keys(regions).length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+          <h3 className="text-sm font-semibold text-teal-600 mb-4">地区收入</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {Object.entries(regions).map(([name, val]) => (
+              <div key={name} className="p-3 bg-teal-50/50 rounded-xl border border-teal-100">
+                <div className="text-xs text-teal-600 font-medium mb-1">{name}</div>
+                <div className="text-sm font-semibold text-slate-800 font-mono">{formatDollarDisplay(val as string)}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Balance Sheet Snapshot */}
+      {fm && (fm.total_assets || fm.total_equity || fm.cash_and_equivalents) && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+          <h3 className="text-sm font-semibold text-amber-600 mb-4">资产负债概况</h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            {[
+              { label: '总资产', val: fm.total_assets },
+              { label: '总负债', val: fm.total_liabilities },
+              { label: '股东权益', val: fm.total_equity },
+              { label: '现金及等价物', val: fm.cash_and_equivalents },
+              { label: '总债务', val: fm.total_debt },
+            ].filter(r => r.val && parseFloat(r.val) !== 0).map(item => (
+              <div key={item.label} className="p-3 bg-amber-50/50 rounded-xl border border-amber-100">
+                <div className="text-xs text-amber-600 font-medium mb-1">{item.label}</div>
+                <div className="text-sm font-semibold text-slate-800 font-mono">{formatDollarDisplay(item.val)}</div>
+              </div>
+            ))}
+          </div>
+          {ratios && (
+            <div className="mt-3 flex gap-4 text-xs text-slate-500">
+              {ratios.current_ratio > 0 && <span>流动比率: {Number(ratios.current_ratio).toFixed(2)}</span>}
+              {ratios.debt_to_equity > 0 && <span>负债权益比: {Number(ratios.debt_to_equity).toFixed(2)}</span>}
+            </div>
+          )}
+        </div>
+      )}
+
+      <p className="text-xs text-slate-400 text-center">
+        数据来源：数据API · 客观数据展示，不含任何主观评价 · 上传研报可查看对比分析
+      </p>
     </div>
   )
 }

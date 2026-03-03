@@ -20,15 +20,21 @@ interface RawQuarterReport {
   fiscal_year: number
   fiscal_quarter: number
   report_date: string
-  financial_metrics: Record<string, string>
+  financial_metrics: Record<string, any>
+  segment_revenue?: { segments: Record<string, string> }
+  geographic_revenue?: { regions: Record<string, string> }
+  financial_ratios?: Record<string, any>
+  growth_metrics?: Record<string, any>
+  key_metrics?: Record<string, any>
+  analyst_estimates?: any
+  earnings_surprise?: any
   s3_url: string | null
   created_at: string
 }
 
-// Full-precision dollar formatting: 113896000000 → "$113.896B"
-function formatDollar(raw: string | null): string {
-  if (!raw) return ''
-  const num = parseFloat(raw)
+function formatDollar(raw: any): string {
+  if (!raw && raw !== 0) return ''
+  const num = typeof raw === 'string' ? parseFloat(raw) : Number(raw)
   if (isNaN(num) || num === 0) return '$0'
   const abs = Math.abs(num)
   const sign = num < 0 ? '-' : ''
@@ -41,36 +47,26 @@ function strip(n: number): string {
   return n.toFixed(6).replace(/\.?0+$/, '') || '0'
 }
 
-function formatEps(raw: string | null): string {
-  if (!raw) return ''
-  const num = parseFloat(raw)
+function formatEps(raw: any): string {
+  if (!raw && raw !== 0) return ''
+  const num = typeof raw === 'string' ? parseFloat(raw) : Number(raw)
   if (isNaN(num)) return ''
   return `$${raw}`
 }
 
-function calcYoY(cur: string | null, prev: string | null): string {
-  if (!cur || !prev) return ''
-  const c = parseFloat(cur), p = parseFloat(prev)
-  if (isNaN(c) || isNaN(p) || p === 0) return ''
-  const pct = ((c - p) / Math.abs(p)) * 100
-  // Verify
-  const recon = p * (1 + pct / 100)
-  if (Math.abs(recon - c) > Math.abs(c) * 0.0001 && Math.abs(c) > 0) {
-    console.warn(`[YoY Verify] cur=${c}, prev=${p}, pct=${pct.toFixed(4)}%, recon=${recon}`)
-  }
+function formatGrowthPct(raw: any): string {
+  if (raw === null || raw === undefined) return ''
+  const num = typeof raw === 'string' ? parseFloat(raw) : Number(raw)
+  if (isNaN(num)) return ''
+  const pct = num * 100
   return `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`
 }
 
-function calcMargin(part: string | null, whole: string | null): string {
-  if (!part || !whole) return ''
-  const p = parseFloat(part), w = parseFloat(whole)
-  if (isNaN(p) || isNaN(w) || w === 0) return ''
-  const pct = (p / w) * 100
-  const recon = w * (pct / 100)
-  if (Math.abs(recon - p) > Math.abs(p) * 0.0001 && Math.abs(p) > 0) {
-    console.warn(`[Margin Verify] part=${p}, whole=${w}, pct=${pct.toFixed(4)}%`)
-  }
-  return `${pct.toFixed(2)}%`
+function formatRatioPct(raw: any): string {
+  if (raw === null || raw === undefined) return ''
+  const num = typeof raw === 'string' ? parseFloat(raw) : Number(raw)
+  if (isNaN(num)) return ''
+  return `${(num * 100).toFixed(2)}%`
 }
 
 export async function GET(request: NextRequest) {
@@ -103,7 +99,7 @@ export async function GET(request: NextRequest) {
         if (!category) continue
 
         const url = `${FINANCIAL_API_BASE}/api/v1/reports/companies/${encodeURIComponent(company.symbol)}/reports?limit=8`
-        console.log(`[Cron] ${company.symbol}: ${url}`)
+        console.log(`[Cron] ${company.symbol}: fetching...`)
         const response = await fetch(url, { headers: { accept: 'application/json' } })
 
         if (!response.ok) {
@@ -121,10 +117,28 @@ export async function GET(request: NextRequest) {
         for (const report of rawReports) {
           try {
             const m = report.financial_metrics
-            const prev = rawReports.find(
-              r => r.fiscal_year === report.fiscal_year - 1 && r.fiscal_quarter === report.fiscal_quarter
-            )
-            const pm = prev?.financial_metrics
+            const g = report.growth_metrics
+            const r = report.financial_ratios
+
+            // Use API-provided growth metrics if available, otherwise leave empty
+            const revenueYoY = g?.revenue_growth != null ? formatGrowthPct(g.revenue_growth) : ''
+            const netIncomeYoY = g?.net_income_growth != null ? formatGrowthPct(g.net_income_growth) : ''
+            const epsYoY = g?.eps_growth != null ? formatGrowthPct(g.eps_growth) : ''
+
+            const opMargin = r?.operating_profit_margin != null ? formatRatioPct(r.operating_profit_margin) : ''
+            const grossMargin = r?.gross_profit_margin != null ? formatRatioPct(r.gross_profit_margin) : ''
+
+            // Store the ENTIRE API response as JSON for detail page and AI analysis
+            const fullReportJson = JSON.stringify({
+              financial_metrics: m,
+              segment_revenue: report.segment_revenue,
+              geographic_revenue: report.geographic_revenue,
+              financial_ratios: report.financial_ratios,
+              growth_metrics: report.growth_metrics,
+              key_metrics: report.key_metrics,
+              analyst_estimates: report.analyst_estimates,
+              earnings_surprise: report.earnings_surprise,
+            }, null, 2)
 
             await upsertFetchedFinancial({
               symbol: company.symbol,
@@ -134,15 +148,14 @@ export async function GET(request: NextRequest) {
               fiscal_quarter: report.fiscal_quarter,
               period: `${report.fiscal_year} Q${report.fiscal_quarter}`,
               revenue: formatDollar(m.revenue),
-              revenue_yoy: calcYoY(m.revenue, pm?.revenue || null),
+              revenue_yoy: revenueYoY,
               net_income: formatDollar(m.net_income),
-              net_income_yoy: calcYoY(m.net_income, pm?.net_income || null),
+              net_income_yoy: netIncomeYoY,
               eps: formatEps(m.eps),
-              eps_yoy: calcYoY(m.eps, pm?.eps || null),
-              operating_margin: calcMargin(m.operating_income, m.revenue),
-              gross_margin: calcMargin(m.gross_profit, m.revenue),
-              // Store the full JSON metrics for AI analysis / research comparison
-              report_text: JSON.stringify(m, null, 2),
+              eps_yoy: epsYoY,
+              operating_margin: opMargin,
+              gross_margin: grossMargin,
+              report_text: fullReportJson,
               filing_date: report.report_date,
             })
             count++
@@ -162,7 +175,6 @@ export async function GET(request: NextRequest) {
 
     const elapsed = Date.now() - startTime
     if (logId) await logCronJobEnd(logId, errors.length > 0 ? 'error' : 'success', companiesChecked, newReportsFound, errors.length > 0 ? errors.join('; ') : undefined, details)
-
     console.log(`[Cron] Done in ${elapsed}ms. Companies: ${companiesChecked}, Stored: ${newReportsFound}, Errors: ${errors.length}`)
 
     return NextResponse.json({ success: true, elapsed_ms: elapsed, companies_checked: companiesChecked, reports_upserted: newReportsFound, errors: errors.length > 0 ? errors : undefined, details })
