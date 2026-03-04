@@ -1020,6 +1020,7 @@ function DbQuarterDetailView({ quarter, allQuarters, period }: { quarter: DbQuar
   } catch { /* not JSON */ }
 
   const fm = parsed?.financial_metrics
+  const km = parsed?.key_metrics
   const pfm = prevParsed?.financial_metrics
   const segments = parsed?.segment_revenue?.segments
   const regions = parsed?.geographic_revenue?.regions
@@ -1100,6 +1101,10 @@ function DbQuarterDetailView({ quarter, allQuarters, period }: { quarter: DbQuar
                 { label: 'CapEx（资本支出）', val: fm ? formatDollarDisplay(fm.capital_expenditure) : null, yoy: getYoY(null, 'capital_expenditure') },
                 { label: 'Operating Cash Flow（经营现金流）', val: fm ? formatDollarDisplay(fm.operating_cash_flow) : null, yoy: getYoY(null, 'operating_cash_flow') },
                 { label: 'Free Cash Flow（自由现金流）', val: fm ? formatDollarDisplay(fm.free_cash_flow) : null, yoy: getYoY('fcf_growth', 'free_cash_flow') },
+                { label: 'ROE（净资产收益率）', val: km?.return_on_equity != null && km.return_on_equity !== 0 ? fmtPct(km.return_on_equity) : null, yoy: '-' },
+                { label: 'ROIC（投入资本回报率）', val: km?.return_on_invested_capital != null && km.return_on_invested_capital !== 0 ? fmtPct(km.return_on_invested_capital) : null, yoy: '-' },
+                { label: 'Dividend Per Share（每股分红）', val: ratios?.dividend_per_share != null && ratios.dividend_per_share !== 0 ? `$${Number(ratios.dividend_per_share).toFixed(4)}` : null, yoy: '-' },
+                { label: 'Dividend Yield（股息率）', val: ratios?.dividend_yield != null && ratios.dividend_yield !== 0 ? fmtPct(ratios.dividend_yield) : null, yoy: '-' },
               ].filter(r => r.val && r.val !== '-').map((row, idx) => (
                 <tr key={idx} className="hover:bg-slate-50">
                   <td className="px-4 py-2.5 font-medium text-slate-800 text-sm">{row.label}</td>
