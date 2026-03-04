@@ -592,6 +592,16 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
                 </div>
               </div>
 
+              {/* Financial Trend Charts */}
+              {!isAnnualView && dbQuarters.length >= 2 && (
+                <FinancialCharts
+                  dbQuarters={dbQuarters}
+                  symbol={symbol}
+                  selectedPeriod={selectedPeriod}
+                  onPeriodSelect={handlePeriodSelect}
+                />
+              )}
+
               {/* Research Upload Panel */}
               {showResearchUpload && hasFinancialData && (
                 <div className="mb-6 bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
@@ -1341,5 +1351,145 @@ function TranscriptContent({ content, date, period, highlightSpeaker, highlightQ
         )
       })}
     </>
+  )
+}
+
+// ============================================================
+// Financial Trend Charts
+// ============================================================
+
+import {
+  ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer, ReferenceLine, Cell,
+} from 'recharts'
+
+function parseDollarValue(s: string | null): number | null {
+  if (!s) return null
+  const m = s.match(/-?\$?([\d.]+)([BMK]?)/)
+  if (!m) return null
+  const num = parseFloat(m[1])
+  const sign = s.startsWith('-') ? -1 : 1
+  if (m[2] === 'M') return sign * num / 1000
+  if (m[2] === 'K') return sign * num / 1000000
+  return sign * num
+}
+
+function parsePercent(s: string | null): number | null {
+  if (!s) return null
+  const m = s.match(/([+-]?[\d.]+)%/)
+  return m ? parseFloat(m[1]) : null
+}
+
+interface ChartDataPoint {
+  period: string
+  periodKey: string
+  revenue: number | null
+  revenueYoY: number | null
+  netIncome: number | null
+  netIncomeYoY: number | null
+}
+
+function FinancialCharts({ dbQuarters, symbol, selectedPeriod, onPeriodSelect }: {
+  dbQuarters: DbQuarter[]
+  symbol: string
+  selectedPeriod: string | null
+  onPeriodSelect: (period: string) => void
+}) {
+  const chartData: ChartDataPoint[] = dbQuarters
+    .filter(q => q.revenue || q.net_income)
+    .sort((a, b) => a.fiscal_year !== b.fiscal_year
+      ? a.fiscal_year - b.fiscal_year
+      : a.fiscal_quarter - b.fiscal_quarter)
+    .map(q => ({
+      period: formatPeriodLabel(q.period, symbol),
+      periodKey: q.period,
+      revenue: parseDollarValue(q.revenue),
+      revenueYoY: parsePercent(q.revenue_yoy),
+      netIncome: parseDollarValue(q.net_income),
+      netIncomeYoY: parsePercent(q.net_income_yoy),
+    }))
+
+  if (chartData.length < 2) return null
+
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (!active || !payload?.length) return null
+    return (
+      <div className="bg-white border border-slate-200 rounded-lg shadow-lg p-3 text-xs">
+        <p className="font-semibold text-slate-800 mb-1.5">{label}</p>
+        {payload.map((p: any, i: number) => (
+          <div key={i} className="flex items-center gap-2 mb-0.5">
+            <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: p.color }} />
+            <span className="text-slate-600">{p.name}:</span>
+            <span className="font-medium text-slate-800">
+              {p.name.includes('YoY') ? `${p.value >= 0 ? '+' : ''}${p.value?.toFixed(2)}%` : `$${p.value?.toFixed(3)}B`}
+            </span>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+      {/* Revenue Chart */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+        <h4 className="text-sm font-semibold text-slate-700 mb-3">Revenue 营收趋势</h4>
+        <ResponsiveContainer width="100%" height={220}>
+          <ComposedChart data={chartData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+            <XAxis dataKey="period" tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} />
+            <YAxis yAxisId="left" tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false}
+              tickFormatter={(v: number) => `$${v}B`} />
+            <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false}
+              tickFormatter={(v: number) => `${v}%`} />
+            <Tooltip content={<CustomTooltip />} />
+            <ReferenceLine yAxisId="right" y={0} stroke="#cbd5e1" strokeDasharray="3 3" />
+            <Bar yAxisId="left" dataKey="revenue" name="Revenue" radius={[4, 4, 0, 0]}
+              cursor="pointer" onClick={(_: any, idx: number) => onPeriodSelect(chartData[idx].periodKey)}>
+              {chartData.map((entry, idx) => (
+                <Cell
+                  key={idx}
+                  fill={entry.periodKey === selectedPeriod ? '#3b82f6' : '#93c5fd'}
+                  stroke={entry.periodKey === selectedPeriod ? '#2563eb' : 'none'}
+                  strokeWidth={entry.periodKey === selectedPeriod ? 2 : 0}
+                />
+              ))}
+            </Bar>
+            <Line yAxisId="right" type="monotone" dataKey="revenueYoY" name="Revenue YoY"
+              stroke="#f59e0b" strokeWidth={2} dot={{ r: 3, fill: '#f59e0b' }} connectNulls />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Net Income Chart */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+        <h4 className="text-sm font-semibold text-slate-700 mb-3">Net Income 净利润趋势</h4>
+        <ResponsiveContainer width="100%" height={220}>
+          <ComposedChart data={chartData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+            <XAxis dataKey="period" tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} />
+            <YAxis yAxisId="left" tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false}
+              tickFormatter={(v: number) => `$${v}B`} />
+            <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false}
+              tickFormatter={(v: number) => `${v}%`} />
+            <Tooltip content={<CustomTooltip />} />
+            <ReferenceLine yAxisId="right" y={0} stroke="#cbd5e1" strokeDasharray="3 3" />
+            <Bar yAxisId="left" dataKey="netIncome" name="Net Income" radius={[4, 4, 0, 0]}
+              cursor="pointer" onClick={(_: any, idx: number) => onPeriodSelect(chartData[idx].periodKey)}>
+              {chartData.map((entry, idx) => (
+                <Cell
+                  key={idx}
+                  fill={entry.periodKey === selectedPeriod ? '#22c55e' : '#86efac'}
+                  stroke={entry.periodKey === selectedPeriod ? '#16a34a' : 'none'}
+                  strokeWidth={entry.periodKey === selectedPeriod ? 2 : 0}
+                />
+              ))}
+            </Bar>
+            <Line yAxisId="right" type="monotone" dataKey="netIncomeYoY" name="Net Income YoY"
+              stroke="#8b5cf6" strokeWidth={2} dot={{ r: 3, fill: '#8b5cf6' }} connectNulls />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
   )
 }
