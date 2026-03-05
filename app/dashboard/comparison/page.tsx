@@ -229,7 +229,7 @@ export default function ComparisonPage() {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-4" />
+          <Loader2 className="h-8 w-8 animate-spin text-emerald-600 mx-auto mb-4" />
           <p className="text-gray-500">加载横向对比数据...</p>
         </div>
       </div>
@@ -258,7 +258,7 @@ export default function ComparisonPage() {
     <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div className="flex items-center gap-4">
-          <div className="h-14 w-14 rounded-xl bg-gradient-to-br from-indigo-600 to-purple-700 flex items-center justify-center shadow-lg">
+          <div className="h-14 w-14 rounded-xl bg-gradient-to-br from-indigo-600 to-purple-700 flex items-center justify-center shadow-soft-md">
             <FileSpreadsheet className="h-7 w-7 text-white" />
           </div>
           <div>
@@ -291,7 +291,7 @@ export default function ComparisonPage() {
         </Card>
         <Card className="border-0 shadow-sm">
           <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-blue-600">
+            <div className="text-2xl font-bold text-emerald-600">
               {new Set(filteredData.map(d => d.company_symbol)).size}
             </div>
             <div className="text-xs text-gray-500 mt-1">公司数</div>
@@ -338,7 +338,7 @@ export default function ComparisonPage() {
           </CardContent>
         </Card>
       ) : (
-        <Card className="border-0 shadow-lg overflow-hidden">
+        <Card className="border-0 shadow-soft-md overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1100px]">
               <thead>
@@ -370,7 +370,7 @@ export default function ComparisonPage() {
                     <tr key={company.id} className={`hover:bg-blue-50/50 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
                       <td className="px-4 py-4 sticky left-0 bg-inherit z-10">
                         <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-sm shadow">
+                          <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white font-bold text-sm shadow">
                             {company.company_symbol?.slice(0, 2) || '??'}
                           </div>
                           <div>
@@ -394,24 +394,24 @@ export default function ComparisonPage() {
                         <div className="text-sm text-gray-700 truncate" title={company.guidance}>{company.guidance}</div>
                       </td>
                       <td className="px-3 py-4 max-w-[180px]">
-                        <div className="text-sm text-slate-700 truncate" title={company.core_driver_quantified}>
+                        <div className="text-sm text-[#4B5563] truncate" title={company.core_driver_quantified}>
                           {company.core_driver_quantified}
                         </div>
                       </td>
                       <td className="px-3 py-4 max-w-[180px]">
-                        <div className="text-sm text-slate-700 truncate" title={company.main_risk_quantified}>
+                        <div className="text-sm text-[#4B5563] truncate" title={company.main_risk_quantified}>
                           {company.main_risk_quantified}
                         </div>
                       </td>
                       <td className="px-3 py-4 max-w-[150px]">
-                        <div className="text-sm text-slate-700 truncate">
+                        <div className="text-sm text-[#4B5563] truncate">
                           {company.checkpoints[0] || '-'}
                         </div>
                       </td>
                       <td className="px-3 py-4 text-center">
                         <Button variant="ghost" size="sm" onClick={() => toggleRowExpand(company.id)} className="hover:bg-blue-100">
                           {expandedRows.has(company.id) ? (
-                            <ChevronUp className="h-4 w-4 text-blue-600" />
+                            <ChevronUp className="h-4 w-4 text-emerald-600" />
                           ) : (
                             <ChevronDown className="h-4 w-4 text-gray-400" />
                           )}
@@ -420,10 +420,10 @@ export default function ComparisonPage() {
                     </tr>
                     
                     {expandedRows.has(company.id) && (
-                      <tr key={`${company.id}-detail`} className="bg-slate-50">
+                      <tr key={`${company.id}-detail`} className="bg-[#F9F9F6]">
                         <td colSpan={9} className="px-6 py-5">
-                          <div className="mb-5 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                            <div className="text-xs font-semibold text-blue-700 mb-2 uppercase tracking-wider">核心数据摘要</div>
+                          <div className="mb-5 p-4 bg-emerald-50/50 rounded-lg border border-blue-200">
+                            <div className="text-xs font-semibold text-emerald-700 mb-2 uppercase tracking-wider">核心数据摘要</div>
                             <div className="text-sm text-blue-900 leading-relaxed font-medium">
                               {company.one_line_conclusion}
                             </div>
@@ -432,15 +432,15 @@ export default function ComparisonPage() {
                           <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
                             <div className="space-y-3">
                               <h4 className="font-semibold text-gray-900 text-sm flex items-center gap-2">
-                                <Zap className="h-4 w-4 text-green-600" />
+                                <Zap className="h-4 w-4 text-emerald-600" />
                                 增长驱动数据
                               </h4>
                               <div className="p-3 bg-green-50 rounded-lg border border-green-100">
                                 <div className="text-xs font-medium text-green-700 mb-1">需求/量：{company.demand_magnitude}</div>
                                 <div className="text-xs text-green-800">{company.demand_change}</div>
                               </div>
-                              <div className="p-3 bg-blue-50 rounded-lg border border-blue-100">
-                                <div className="text-xs font-medium text-blue-700 mb-1">变现/价：{company.monetization_magnitude}</div>
+                              <div className="p-3 bg-emerald-50/50 rounded-lg border border-blue-100">
+                                <div className="text-xs font-medium text-emerald-700 mb-1">变现/价：{company.monetization_magnitude}</div>
                                 <div className="text-xs text-blue-800">{company.monetization_change}</div>
                               </div>
                               <div className="p-3 bg-purple-50 rounded-lg border border-purple-100">
@@ -451,11 +451,11 @@ export default function ComparisonPage() {
                             
                             <div className="space-y-3">
                               <h4 className="font-semibold text-gray-900 text-sm flex items-center gap-2">
-                                <DollarSign className="h-4 w-4 text-blue-600" />
+                                <DollarSign className="h-4 w-4 text-emerald-600" />
                                 投入与ROI
                               </h4>
-                              <div className="p-3 bg-blue-50 rounded-lg border border-blue-100">
-                                <div className="text-xs font-medium text-blue-700 mb-1">CapEx变化</div>
+                              <div className="p-3 bg-emerald-50/50 rounded-lg border border-blue-100">
+                                <div className="text-xs font-medium text-emerald-700 mb-1">CapEx变化</div>
                                 <div className="text-sm text-blue-900 font-medium">{company.capex_change}</div>
                               </div>
                               <div className="p-3 bg-indigo-50 rounded-lg border border-indigo-100">
@@ -478,7 +478,7 @@ export default function ComparisonPage() {
                             
                             <div className="space-y-3">
                               <h4 className="font-semibold text-gray-900 text-sm flex items-center gap-2">
-                                <AlertTriangle className="h-4 w-4 text-red-600" />
+                                <AlertTriangle className="h-4 w-4 text-red-500" />
                                 风险与检查点
                               </h4>
                               {company.main_risks.length > 0 && (

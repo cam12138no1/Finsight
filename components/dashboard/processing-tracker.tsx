@@ -83,28 +83,28 @@ export default function ProcessingTracker({ onRefresh }: ProcessingTrackerProps)
 
   return (
     <div className="fixed bottom-4 right-4 z-50 w-80">
-      <div className={`bg-white rounded-xl shadow-2xl border overflow-hidden transition-all ${
-        hasErrors ? 'border-red-200' : hasProcessing ? 'border-blue-200' : 'border-green-200'
+      <div className={`bg-white rounded-xl shadow-soft-lg border overflow-hidden transition-all ${
+        hasErrors ? 'border-red-200' : hasProcessing ? 'border-emerald-200' : 'border-green-200'
       }`}>
         {/* Header */}
         <div 
           className={`px-4 py-3 cursor-pointer flex items-center justify-between ${
-            hasErrors ? 'bg-red-50' : hasProcessing ? 'bg-blue-50' : 'bg-green-50'
+            hasErrors ? 'bg-red-50' : hasProcessing ? 'bg-emerald-50/50' : 'bg-emerald-50/50'
           }`}
           onClick={() => setIsExpanded(!isExpanded)}
         >
           <div className="flex items-center gap-3">
             {hasProcessing ? (
               <div className="relative">
-                <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
-                <span className="absolute -top-1 -right-1 h-3 w-3 bg-blue-600 rounded-full flex items-center justify-center text-[8px] text-white font-bold">
+                <Loader2 className="h-5 w-5 text-emerald-600 animate-spin" />
+                <span className="absolute -top-1 -right-1 h-3 w-3 bg-emerald-600 rounded-full flex items-center justify-center text-[8px] text-white font-bold">
                   {status.processingCount}
                 </span>
               </div>
             ) : hasErrors ? (
               <AlertCircle className="h-5 w-5 text-red-600" />
             ) : (
-              <CheckCircle2 className="h-5 w-5 text-green-600" />
+              <CheckCircle2 className="h-5 w-5 text-emerald-600" />
             )}
             <div>
               <p className={`text-sm font-semibold ${
@@ -118,7 +118,7 @@ export default function ProcessingTracker({ onRefresh }: ProcessingTrackerProps)
                 }
               </p>
               <p className={`text-xs ${
-                hasErrors ? 'text-red-600' : hasProcessing ? 'text-blue-600' : 'text-green-600'
+                hasErrors ? 'text-red-600' : hasProcessing ? 'text-emerald-600' : 'text-emerald-600'
               }`}>
                 {hasProcessing 
                   ? t('processing.pleaseWait')
@@ -158,15 +158,15 @@ export default function ProcessingTracker({ onRefresh }: ProcessingTrackerProps)
                 </p>
                 <div className="space-y-2">
                   {status.processing.map((item) => (
-                    <div key={item.id} className="flex items-center gap-3 p-2 bg-blue-50 rounded-lg">
-                      <Loader2 className="h-4 w-4 text-blue-600 animate-spin flex-shrink-0" />
+                    <div key={item.id} className="flex items-center gap-3 p-2 bg-emerald-50/50 rounded-lg">
+                      <Loader2 className="h-4 w-4 text-emerald-600 animate-spin flex-shrink-0" />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-900 truncate">
                           {item.company_name}
                         </p>
                         <p className="text-xs text-gray-500">{item.company_symbol}</p>
                       </div>
-                      <div className="flex items-center gap-1 text-xs text-blue-600">
+                      <div className="flex items-center gap-1 text-xs text-emerald-600">
                         <Clock className="h-3 w-3" />
                         <span>{t('processing.analyzing_status')}</span>
                       </div>
@@ -184,15 +184,15 @@ export default function ProcessingTracker({ onRefresh }: ProcessingTrackerProps)
                 </p>
                 <div className="space-y-2">
                   {status.completed.slice(0, 5).map((item) => (
-                    <div key={item.id} className="flex items-center gap-3 p-2 bg-green-50 rounded-lg">
-                      <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0" />
+                    <div key={item.id} className="flex items-center gap-3 p-2 bg-emerald-50/50 rounded-lg">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600 flex-shrink-0" />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-900 truncate">
                           {item.company_name}
                         </p>
                         <p className="text-xs text-gray-500">{item.company_symbol}</p>
                       </div>
-                      <span className="text-xs text-green-600">{t('processing.done')}</span>
+                      <span className="text-xs text-emerald-600">{t('processing.done')}</span>
                     </div>
                   ))}
                 </div>
@@ -227,7 +227,7 @@ export default function ProcessingTracker({ onRefresh }: ProcessingTrackerProps)
         {hasProcessing && (
           <div className="h-1 bg-blue-100">
             <div 
-              className="h-full bg-blue-600 animate-pulse"
+              className="h-full bg-emerald-600 animate-pulse"
               style={{ width: '100%' }}
             />
           </div>

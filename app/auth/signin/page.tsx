@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { toast } from '@/components/ui/toaster'
-import { TrendingUp } from 'lucide-react'
+import Image from 'next/image'
 
 export default function SignInPage() {
   const t = useTranslations()
@@ -49,25 +49,25 @@ export default function SignInPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <div className="flex items-center justify-center gap-3 mb-2">
-            <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
-              <TrendingUp className="h-6 w-6 text-white" />
+    <div className="min-h-screen flex items-center justify-center bg-[#FAFAF8] p-4">
+      <Card className="w-full max-w-sm border-[#E8E8E3] shadow-soft-md">
+        <CardHeader className="space-y-1 pb-4">
+          <div className="flex items-center justify-center mb-3">
+            <div className="h-12 w-12 rounded-xl overflow-hidden shadow-soft">
+              <Image src="/logo.png" alt="FinSight" width={48} height={48} className="object-cover" />
             </div>
           </div>
-          <CardTitle className="text-3xl font-bold text-center">
+          <CardTitle className="text-2xl font-semibold text-center text-[#1F2937]">
             FinSight AI
           </CardTitle>
-          <CardDescription className="text-center">
+          <CardDescription className="text-center text-[#9CA3AF] text-sm">
             智析财报 · AI驱动的企业财报分析平台
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <label htmlFor="email" className="text-sm font-medium">
+            <div className="space-y-1.5">
+              <label htmlFor="email" className="text-sm font-medium text-[#4B5563]">
                 {t('auth.email')}
               </label>
               <Input
@@ -78,10 +78,11 @@ export default function SignInPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 disabled={isLoading}
+                className="h-10 border-[#E8E8E3] focus:border-emerald-400 focus:ring-emerald-400/20"
               />
             </div>
-            <div className="space-y-2">
-              <label htmlFor="password" className="text-sm font-medium">
+            <div className="space-y-1.5">
+              <label htmlFor="password" className="text-sm font-medium text-[#4B5563]">
                 {t('auth.password')}
               </label>
               <Input
@@ -92,15 +93,20 @@ export default function SignInPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 disabled={isLoading}
+                className="h-10 border-[#E8E8E3] focus:border-emerald-400 focus:ring-emerald-400/20"
               />
             </div>
-            <Button type="submit" className="w-full" disabled={isLoading}>
+            <Button
+              type="submit"
+              className="w-full h-10 bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer transition-colors duration-200"
+              disabled={isLoading}
+            >
               {isLoading ? t('auth.signingIn') : t('auth.signIn')}
             </Button>
           </form>
-          <div className="mt-6 text-sm text-center text-gray-600">
-            <p>演示账号:</p>
-            <p className="font-mono text-xs mt-1">
+          <div className="mt-5 pt-4 border-t border-[#E8E8E3] text-center">
+            <p className="text-[11px] text-[#9CA3AF] mb-1">演示账号</p>
+            <p className="font-mono text-xs text-[#6B7280]">
               admin@example.com / admin123
             </p>
           </div>

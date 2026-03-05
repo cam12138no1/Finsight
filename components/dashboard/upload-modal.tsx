@@ -544,24 +544,24 @@ export default function UploadModal({ isOpen, onClose, onSuccess }: UploadModalP
     <div className="fixed inset-0 z-50 overflow-hidden">
       {/* Backdrop */}
       <div 
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/20 backdrop-blur-sm"
         onClick={() => !isProcessing && onClose()}
       />
       
       {/* Modal */}
-      <div className="absolute inset-x-4 top-[5%] md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-full md:max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden">
+      <div className="absolute inset-x-4 top-[5%] md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-full md:max-w-lg bg-white rounded-xl shadow-soft-lg overflow-hidden">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+        <div className="px-6 py-4 border-b border-[#E8E8E3] flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-slate-900">上传财报分析</h2>
-            <p className="text-sm text-slate-500">上传季度财报和研报进行AI深度分析</p>
+            <h2 className="text-lg font-semibold text-[#1F2937]">上传财报分析</h2>
+            <p className="text-sm text-[#6B7280]">上传季度财报和研报进行AI深度分析</p>
           </div>
           {!isProcessing && (
             <button
               onClick={onClose}
-              className="h-8 w-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"
+              className="h-8 w-8 rounded-lg hover:bg-[#F5F5F0] flex items-center justify-center"
             >
-              <X className="h-5 w-5 text-slate-400" />
+              <X className="h-5 w-5 text-[#9CA3AF]" />
             </button>
           )}
         </div>
@@ -570,16 +570,16 @@ export default function UploadModal({ isOpen, onClose, onSuccess }: UploadModalP
         <div className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
           {/* Status Display */}
           {isProcessing && (
-            <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
+            <div className="p-4 bg-emerald-50/50 rounded-xl border border-blue-100">
               <div className="flex items-center gap-3">
                 <div className="h-10 w-10 rounded-lg bg-blue-100 flex items-center justify-center">
-                  <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
+                  <Loader2 className="h-5 w-5 text-emerald-600 animate-spin" />
                 </div>
                 <div>
                   <p className="font-medium text-blue-900">
                     {analysisStatus === 'uploading' ? '正在上传文件...' : 'AI正在分析财报...'}
                   </p>
-                  <p className="text-sm text-blue-600">
+                  <p className="text-sm text-emerald-600">
                     {uploadProgress || '请稍候，这可能需要1-2分钟'}
                   </p>
                 </div>
@@ -588,14 +588,14 @@ export default function UploadModal({ isOpen, onClose, onSuccess }: UploadModalP
           )}
 
           {analysisStatus === 'success' && (
-            <div className="p-4 bg-green-50 rounded-xl border border-green-100">
+            <div className="p-4 bg-emerald-50/50 rounded-xl border border-green-100">
               <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-green-100 flex items-center justify-center">
-                  <CheckCircle2 className="h-5 w-5 text-green-600" />
+                <div className="h-10 w-10 rounded-lg bg-emerald-100/50 flex items-center justify-center">
+                  <CheckCircle2 className="h-5 w-5 text-emerald-600" />
                 </div>
                 <div>
                   <p className="font-medium text-green-900">分析完成</p>
-                  <p className="text-sm text-green-600">财报分析已生成，正在关闭...</p>
+                  <p className="text-sm text-emerald-600">财报分析已生成，正在关闭...</p>
                 </div>
               </div>
             </div>
@@ -620,7 +620,7 @@ export default function UploadModal({ isOpen, onClose, onSuccess }: UploadModalP
             <>
               {/* Year and Quarter Selection */}
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-3 flex items-center gap-2">
+                <label className="block text-sm font-medium text-[#4B5563] mb-3 flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-orange-500" />
                   报告期间
                 </label>
@@ -630,7 +630,7 @@ export default function UploadModal({ isOpen, onClose, onSuccess }: UploadModalP
                     <select
                       value={selectedYear}
                       onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-[#E8E8E3] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     >
                       {YEAR_OPTIONS.map(year => (
                         <option key={year} value={year}>{year}年</option>
@@ -642,7 +642,7 @@ export default function UploadModal({ isOpen, onClose, onSuccess }: UploadModalP
                     <select
                       value={selectedQuarter}
                       onChange={(e) => setSelectedQuarter(parseInt(e.target.value))}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-[#E8E8E3] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     >
                       {QUARTER_OPTIONS.map(q => (
                         <option key={q.value} value={q.value}>{q.label}</option>
@@ -653,7 +653,7 @@ export default function UploadModal({ isOpen, onClose, onSuccess }: UploadModalP
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-3">公司分类</label>
+                <label className="block text-sm font-medium text-[#4B5563] mb-3">公司分类</label>
                 <div className="grid grid-cols-3 gap-3">
                   {Object.entries(COMPANY_CATEGORIES).map(([key, value]) => {
                     const Icon = value.icon
@@ -664,17 +664,17 @@ export default function UploadModal({ isOpen, onClose, onSuccess }: UploadModalP
                         onClick={() => setSelectedCategory(key as 'AI_APPLICATION' | 'AI_SUPPLY_CHAIN' | 'CONSUMER_GOODS')}
                         className={`p-3 rounded-xl border-2 text-left transition-all ${
                           isSelected 
-                            ? 'border-blue-500 bg-blue-50' 
-                            : 'border-slate-200 hover:border-slate-300'
+                            ? 'border-emerald-500 bg-emerald-50/50' 
+                            : 'border-[#E8E8E3] hover:border-[#E8E8E3]'
                         }`}
                       >
                         <div className="flex items-center gap-2 mb-1">
-                          <Icon className={`h-4 w-4 ${isSelected ? 'text-blue-600' : 'text-slate-400'}`} />
-                          <span className={`text-sm font-medium ${isSelected ? 'text-blue-900' : 'text-slate-700'}`}>
+                          <Icon className={`h-4 w-4 ${isSelected ? 'text-emerald-600' : 'text-[#9CA3AF]'}`} />
+                          <span className={`text-sm font-medium ${isSelected ? 'text-blue-900' : 'text-[#4B5563]'}`}>
                             {value.name}
                           </span>
                         </div>
-                        <p className="text-xs text-slate-500">{value.description}</p>
+                        <p className="text-xs text-[#6B7280]">{value.description}</p>
                       </button>
                     )
                   })}
@@ -683,13 +683,13 @@ export default function UploadModal({ isOpen, onClose, onSuccess }: UploadModalP
 
               {/* Financial Report Upload */}
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2 flex items-center gap-2">
-                  <FileBarChart className="h-4 w-4 text-blue-500" />
+                <label className="block text-sm font-medium text-[#4B5563] mb-2 flex items-center gap-2">
+                  <FileBarChart className="h-4 w-4 text-emerald-600" />
                   财报文件 <span className="text-red-500">*</span>
                 </label>
-                <p className="text-xs text-slate-500 mb-3">季度财报 (10-Q) 或年度财报 (10-K)，支持最大500MB</p>
+                <p className="text-xs text-[#6B7280] mb-3">季度财报 (10-Q) 或年度财报 (10-K)，支持最大500MB</p>
                 
-                <div className="border-2 border-dashed border-slate-200 rounded-xl p-4 hover:border-blue-300 transition-colors">
+                <div className="border-2 border-dashed border-[#E8E8E3] rounded-xl p-4 hover:border-emerald-300 transition-colors">
                   <input
                     type="file"
                     accept=".pdf"
@@ -699,23 +699,23 @@ export default function UploadModal({ isOpen, onClose, onSuccess }: UploadModalP
                     id="financial-upload"
                   />
                   <label htmlFor="financial-upload" className="cursor-pointer block text-center">
-                    <Upload className="h-8 w-8 text-slate-400 mx-auto mb-2" />
-                    <p className="text-sm text-slate-600">点击上传财报PDF</p>
+                    <Upload className="h-8 w-8 text-[#9CA3AF] mx-auto mb-2" />
+                    <p className="text-sm text-[#6B7280]">点击上传财报PDF</p>
                   </label>
                 </div>
 
                 {financialFiles.length > 0 && (
                   <div className="mt-3 space-y-2">
                     {financialFiles.map((item) => (
-                      <div key={item.id} className="flex items-center gap-2 p-2 bg-blue-50 rounded-lg">
-                        <FileText className="h-4 w-4 text-blue-500 flex-shrink-0" />
-                        <span className="text-sm text-slate-700 flex-1 truncate">{item.file.name}</span>
-                        <span className="text-xs text-slate-400">{(item.file.size / 1024 / 1024).toFixed(1)}MB</span>
+                      <div key={item.id} className="flex items-center gap-2 p-2 bg-emerald-50/50 rounded-lg">
+                        <FileText className="h-4 w-4 text-emerald-600 flex-shrink-0" />
+                        <span className="text-sm text-[#4B5563] flex-1 truncate">{item.file.name}</span>
+                        <span className="text-xs text-[#9CA3AF]">{(item.file.size / 1024 / 1024).toFixed(1)}MB</span>
                         <button
                           onClick={() => removeFile(item.id, 'financial')}
                           className="p-1 hover:bg-blue-100 rounded"
                         >
-                          <Trash2 className="h-4 w-4 text-slate-400" />
+                          <Trash2 className="h-4 w-4 text-[#9CA3AF]" />
                         </button>
                       </div>
                     ))}
@@ -725,13 +725,13 @@ export default function UploadModal({ isOpen, onClose, onSuccess }: UploadModalP
 
               {/* Research Report Upload */}
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2 flex items-center gap-2">
+                <label className="block text-sm font-medium text-[#4B5563] mb-2 flex items-center gap-2">
                   <BookOpen className="h-4 w-4 text-purple-500" />
-                  研报文件 <span className="text-slate-400 text-xs font-normal">（可选）</span>
+                  研报文件 <span className="text-[#9CA3AF] text-xs font-normal">（可选）</span>
                 </label>
-                <p className="text-xs text-slate-500 mb-3">卖方研报，用于对比市场预期</p>
+                <p className="text-xs text-[#6B7280] mb-3">卖方研报，用于对比市场预期</p>
                 
-                <div className="border-2 border-dashed border-slate-200 rounded-xl p-4 hover:border-purple-300 transition-colors">
+                <div className="border-2 border-dashed border-[#E8E8E3] rounded-xl p-4 hover:border-purple-300 transition-colors">
                   <input
                     type="file"
                     accept=".pdf"
@@ -741,8 +741,8 @@ export default function UploadModal({ isOpen, onClose, onSuccess }: UploadModalP
                     id="research-upload"
                   />
                   <label htmlFor="research-upload" className="cursor-pointer block text-center">
-                    <Upload className="h-8 w-8 text-slate-400 mx-auto mb-2" />
-                    <p className="text-sm text-slate-600">点击上传研报PDF</p>
+                    <Upload className="h-8 w-8 text-[#9CA3AF] mx-auto mb-2" />
+                    <p className="text-sm text-[#6B7280]">点击上传研报PDF</p>
                   </label>
                 </div>
 
@@ -751,13 +751,13 @@ export default function UploadModal({ isOpen, onClose, onSuccess }: UploadModalP
                     {researchFiles.map((item) => (
                       <div key={item.id} className="flex items-center gap-2 p-2 bg-purple-50 rounded-lg">
                         <FileText className="h-4 w-4 text-purple-500 flex-shrink-0" />
-                        <span className="text-sm text-slate-700 flex-1 truncate">{item.file.name}</span>
-                        <span className="text-xs text-slate-400">{(item.file.size / 1024 / 1024).toFixed(1)}MB</span>
+                        <span className="text-sm text-[#4B5563] flex-1 truncate">{item.file.name}</span>
+                        <span className="text-xs text-[#9CA3AF]">{(item.file.size / 1024 / 1024).toFixed(1)}MB</span>
                         <button
                           onClick={() => removeFile(item.id, 'research')}
                           className="p-1 hover:bg-purple-100 rounded"
                         >
-                          <Trash2 className="h-4 w-4 text-slate-400" />
+                          <Trash2 className="h-4 w-4 text-[#9CA3AF]" />
                         </button>
                       </div>
                     ))}
@@ -767,7 +767,7 @@ export default function UploadModal({ isOpen, onClose, onSuccess }: UploadModalP
 
               {/* Total file size indicator */}
               {(financialFiles.length > 0 || researchFiles.length > 0) && (
-                <div className="text-xs text-slate-500 text-right">
+                <div className="text-xs text-[#6B7280] text-right">
                   总计: {financialFiles.length + researchFiles.length} 个文件, {totalSizeMB}MB
                 </div>
               )}
@@ -777,7 +777,7 @@ export default function UploadModal({ isOpen, onClose, onSuccess }: UploadModalP
 
         {/* Footer */}
         {!isProcessing && analysisStatus !== 'success' && (
-          <div className="px-6 py-4 border-t border-slate-100 bg-slate-50">
+          <div className="px-6 py-4 border-t border-[#E8E8E3] bg-[#F9F9F6]">
             <div className="flex gap-3">
               <Button
                 variant="outline"
@@ -789,7 +789,7 @@ export default function UploadModal({ isOpen, onClose, onSuccess }: UploadModalP
               <Button
                 onClick={handleSubmit}
                 disabled={financialFiles.length === 0 || !selectedCategory}
-                className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700"
               >
                 开始分析
               </Button>

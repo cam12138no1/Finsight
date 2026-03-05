@@ -67,7 +67,7 @@ export default function ReportsPage() {
   if (isLoading) {
     return (
       <div className="p-6 flex items-center justify-center min-h-[400px]">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
       </div>
     )
   }
@@ -104,7 +104,7 @@ export default function ReportsPage() {
 
         {/* 0) 一句话结论 */}
         {selectedAnalysis.one_line_conclusion && (
-          <Card className="border-l-4 border-l-blue-600 bg-blue-50">
+          <Card className="border-l-4 border-l-emerald-600 bg-emerald-50/50">
             <CardHeader className="pb-2">
               <CardTitle className="text-lg">📌 一句话结论</CardTitle>
             </CardHeader>
@@ -146,7 +146,7 @@ export default function ReportsPage() {
                             {row.delta}
                           </span>
                         </td>
-                        <td className="py-3 px-4 text-sm text-slate-600">
+                        <td className="py-3 px-4 text-sm text-[#6B7280]">
                           {row.assessment || '-'}
                         </td>
                       </tr>
@@ -175,9 +175,9 @@ export default function ReportsPage() {
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* A. 需求/量 */}
-                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="p-4 bg-emerald-50/50 rounded-lg border border-emerald-200">
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">A</span>
+                    <span className="w-6 h-6 bg-emerald-600 text-white rounded-full flex items-center justify-center text-xs font-bold">A</span>
                     <h4 className="font-semibold">{selectedAnalysis.drivers.demand?.title || '需求/量'}</h4>
                   </div>
                   <p className="text-sm mb-2"><strong>变化：</strong>{selectedAnalysis.drivers.demand?.change}</p>
@@ -306,7 +306,7 @@ export default function ReportsPage() {
               <ul className="space-y-2">
                 {selectedAnalysis.sustainability_risks.checkpoints.map((cp: string, i: number) => (
                   <li key={i} className="flex items-start">
-                    <ChevronRight className="h-4 w-4 text-blue-500 mt-0.5 mr-2 flex-shrink-0" />
+                    <ChevronRight className="h-4 w-4 text-emerald-600 mt-0.5 mr-2 flex-shrink-0" />
                     <span className="text-sm">{cp}</span>
                   </li>
                 ))}
@@ -332,7 +332,7 @@ export default function ReportsPage() {
                   <p className="font-medium">{selectedAnalysis.model_impact.capex_adjustment}</p>
                 </div>
               </div>
-              <div className="p-3 bg-blue-50 rounded border border-blue-200 mb-4">
+              <div className="p-3 bg-emerald-50/50 rounded border border-emerald-200 mb-4">
                 <p className="text-sm text-gray-500">估值变化</p>
                 <p className="font-semibold text-blue-700">{selectedAnalysis.model_impact.valuation_change}</p>
               </div>
@@ -409,7 +409,7 @@ export default function ReportsPage() {
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-4">
-                    <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold">
+                    <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white font-bold">
                       {analysis.company_symbol?.slice(0, 2) || '??'}
                     </div>
                     <div>

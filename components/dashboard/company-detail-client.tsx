@@ -436,30 +436,30 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
-        <Loader2 className="h-8 w-8 text-blue-500 animate-spin" />
+      <div className="min-h-screen bg-[#FAFAF8] flex items-center justify-center">
+        <Loader2 className="h-8 w-8 text-emerald-500 animate-spin" />
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+    <div className="min-h-screen bg-[#FAFAF8]">
       {/* Header */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-40">
+      <header className="bg-white border-b border-[#E8E8E3] sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center gap-4">
             <button
               onClick={() => router.push(`/dashboard?category=${category || 'AI_APPLICATION'}`)}
-              className="h-10 w-10 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors"
+              className="h-10 w-10 rounded-xl bg-[#F5F5F0] hover:bg-[#EAEAE5] flex items-center justify-center transition-colors"
             >
-              <ArrowLeft className="h-5 w-5 text-slate-600" />
+              <ArrowLeft className="h-5 w-5 text-[#4B5563]" />
             </button>
-            <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center font-bold text-white text-sm">
+            <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center font-bold text-white text-sm">
               {symbol.slice(0, 4)}
             </div>
             <div>
-              <h1 className="text-xl font-bold text-slate-900">{company?.name || symbol}</h1>
-              <p className="text-sm text-slate-500">{company?.nameZh || ''} · {symbol} · 季度财报数据</p>
+              <h1 className="text-xl font-bold text-[#1F2937]">{company?.name || symbol}</h1>
+              <p className="text-sm text-[#6B7280]">{company?.nameZh || ''} · {symbol} · 季度财报数据</p>
             </div>
           </div>
         </div>
@@ -469,11 +469,11 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
         {/* Left sidebar: Period selector */}
         <div className="w-48 flex-shrink-0">
           {/* View mode toggle */}
-          <div className="flex bg-slate-100 rounded-lg p-0.5 mb-4">
+          <div className="flex bg-[#F5F5F0] rounded-lg p-0.5 mb-4">
             <button
               onClick={() => { setViewMode('quarterly'); setSelectedPeriod(null) }}
               className={`flex-1 text-xs font-medium py-1.5 rounded-md transition-all ${
-                viewMode === 'quarterly' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                viewMode === 'quarterly' ? 'bg-white text-[#1F2937] shadow-sm' : 'text-[#6B7280] hover:text-[#4B5563]'
               }`}
             >
               {isSemiAnnual ? '半年报' : '季度'}
@@ -481,14 +481,14 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
             <button
               onClick={() => { setViewMode('annual'); setSelectedPeriod(null) }}
               className={`flex-1 text-xs font-medium py-1.5 rounded-md transition-all ${
-                viewMode === 'annual' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                viewMode === 'annual' ? 'bg-white text-[#1F2937] shadow-sm' : 'text-[#6B7280] hover:text-[#4B5563]'
               }`}
             >
               年度
             </button>
           </div>
 
-          <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 px-2">
+          <h3 className="text-xs font-semibold text-[#9CA3AF] uppercase tracking-wider mb-3 px-2">
             {viewMode === 'quarterly' ? (isSemiAnnual ? '半年报选择' : '季度选择') : '年度选择'}
           </h3>
           <div className="space-y-1 max-h-[calc(100vh-260px)] overflow-y-auto pr-1">
@@ -507,10 +507,10 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
                     onClick={() => handlePeriodSelect(key)}
                     className={`w-full text-left px-3 py-2 rounded-xl text-sm font-medium transition-all flex items-center justify-between ${
                       isSelected
-                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25'
+                        ? 'bg-emerald-600 text-white shadow-soft-md shadow-emerald-500/25'
                         : hasData
-                        ? 'bg-white text-slate-700 border border-slate-200 hover:border-blue-300 hover:text-blue-600'
-                        : 'text-slate-400 hover:bg-slate-100 hover:text-slate-600'
+                        ? 'bg-white text-[#4B5563] border border-[#E8E8E3] hover:border-emerald-300 hover:text-emerald-600'
+                        : 'text-[#9CA3AF] hover:bg-[#F5F5F0] hover:text-[#4B5563]'
                     }`}
                   >
                     <span>{formatPeriodLabel(key, symbol)}</span>
@@ -533,10 +533,10 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
                     onClick={() => handlePeriodSelect(key)}
                     className={`w-full text-left px-3 py-2 rounded-xl text-sm font-medium transition-all flex items-center justify-between ${
                       isSelected
-                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25'
+                        ? 'bg-emerald-600 text-white shadow-soft-md shadow-emerald-500/25'
                         : hasData
-                        ? 'bg-white text-slate-700 border border-slate-200 hover:border-blue-300 hover:text-blue-600'
-                        : 'text-slate-400 hover:bg-slate-100 hover:text-slate-600'
+                        ? 'bg-white text-[#4B5563] border border-[#E8E8E3] hover:border-emerald-300 hover:text-emerald-600'
+                        : 'text-[#9CA3AF] hover:bg-[#F5F5F0] hover:text-[#4B5563]'
                     }`}
                   >
                     <span>{key}</span>
@@ -555,13 +555,13 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
               {/* Period Header + Tabs + Actions */}
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-4">
-                  <h2 className="text-lg font-bold text-slate-800">{formatPeriodLabel(selectedPeriod, symbol)} 财报数据</h2>
+                  <h2 className="text-lg font-bold text-[#1F2937]">{formatPeriodLabel(selectedPeriod, symbol)} 财报数据</h2>
                   {hasFinancialData && hasComparison && (
-                    <div className="flex bg-slate-100 rounded-lg p-0.5">
+                    <div className="flex bg-[#F5F5F0] rounded-lg p-0.5">
                       <button
                         onClick={() => setViewTab('financial')}
                         className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                          viewTab === 'financial' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                          viewTab === 'financial' ? 'bg-white text-[#1F2937] shadow-sm' : 'text-[#6B7280] hover:text-[#4B5563]'
                         }`}
                       >
                         财报数据
@@ -569,7 +569,7 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
                       <button
                         onClick={() => setViewTab('comparison')}
                         className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                          viewTab === 'comparison' ? 'bg-white text-purple-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                          viewTab === 'comparison' ? 'bg-white text-purple-700 shadow-sm' : 'text-[#6B7280] hover:text-[#4B5563]'
                         }`}
                       >
                         研报对比
@@ -604,8 +604,8 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
 
               {/* Research Upload Panel */}
               {showResearchUpload && hasFinancialData && (
-                <div className="mb-6 bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-                  <h3 className="text-base font-semibold text-slate-900 mb-4">
+                <div className="mb-6 bg-white rounded-xl border border-[#E8E8E3] p-5 shadow-sm">
+                  <h3 className="text-base font-semibold text-[#1F2937] mb-4">
                     上传研报（与财报数据客观对比）
                   </h3>
 
@@ -648,18 +648,18 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
                         />
                         <label htmlFor="research-upload" className="cursor-pointer block text-center">
                           <Upload className="h-6 w-6 text-purple-400 mx-auto mb-1" />
-                          <p className="text-sm text-slate-600">点击上传研报PDF（用于与财报数据客观对比）</p>
-                          <p className="text-xs text-slate-400 mt-1">仅展示数据差异，不含任何主观评价</p>
+                          <p className="text-sm text-[#4B5563]">点击上传研报PDF（用于与财报数据客观对比）</p>
+                          <p className="text-xs text-[#9CA3AF] mt-1">仅展示数据差异，不含任何主观评价</p>
                         </label>
                       </div>
 
                       {researchFiles.map(item => (
                         <div key={item.id} className="flex items-center gap-2 p-2 bg-purple-50 rounded-lg mb-1.5">
                           <FileText className="h-4 w-4 text-purple-500 flex-shrink-0" />
-                          <span className="text-sm text-slate-700 flex-1 truncate">{item.file.name}</span>
-                          <span className="text-xs text-slate-400">{(item.file.size / 1024 / 1024).toFixed(1)}MB</span>
-                          <button onClick={() => setResearchFiles(prev => prev.filter(f => f.id !== item.id))} className="p-1 hover:bg-slate-100 rounded">
-                            <Trash2 className="h-4 w-4 text-slate-400" />
+                          <span className="text-sm text-[#4B5563] flex-1 truncate">{item.file.name}</span>
+                          <span className="text-xs text-[#9CA3AF]">{(item.file.size / 1024 / 1024).toFixed(1)}MB</span>
+                          <button onClick={() => setResearchFiles(prev => prev.filter(f => f.id !== item.id))} className="p-1 hover:bg-[#F5F5F0] rounded">
+                            <Trash2 className="h-4 w-4 text-[#9CA3AF]" />
                           </button>
                         </div>
                       ))}
@@ -716,11 +716,11 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
                       重新生成
                     </Button>
                   </div>
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
+                  <div className="bg-white rounded-xl border border-[#E8E8E3] shadow-sm">
                     {isLoadingResearch ? (
                       <div className="flex items-center justify-center py-20">
                         <Loader2 className="h-8 w-8 text-purple-500 animate-spin" />
-                        <span className="ml-3 text-sm text-slate-500">加载对比分析结果...</span>
+                        <span className="ml-3 text-sm text-[#6B7280]">加载对比分析结果...</span>
                       </div>
                     ) : (
                       <AnalysisView
@@ -740,27 +740,27 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
               {/* Annual: show all quarters of that year side-by-side */}
               {isAnnualView && annualDbQuarters.length > 0 && (
                 <div className="space-y-6">
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-                    <h3 className="text-sm font-semibold text-blue-600 mb-4 flex items-center gap-2">
+                  <div className="bg-white rounded-xl border border-[#E8E8E3] shadow-sm p-6">
+                    <h3 className="text-sm font-semibold text-emerald-600 mb-4 flex items-center gap-2">
                       <FileText className="h-4 w-4" />
                       FY {selectedFiscalYear} 年度财报汇总
                     </h3>
-                    <div className="overflow-x-auto rounded-xl border border-slate-200">
+                    <div className="overflow-x-auto rounded-xl border border-[#E8E8E3]">
                       <table className="w-full text-sm">
                         <thead>
-                          <tr className="bg-slate-50">
-                            <th className="px-4 py-3 text-left font-semibold text-slate-600">指标</th>
+                          <tr className="bg-[#F5F5F0]">
+                            <th className="px-4 py-3 text-left font-semibold text-[#4B5563]">指标</th>
                             {annualDbQuarters
                               .sort((a, b) => a.fiscal_quarter - b.fiscal_quarter)
                               .map(q => (
-                                <th key={q.period} className="px-4 py-3 text-right font-semibold text-slate-600">
+                                <th key={q.period} className="px-4 py-3 text-right font-semibold text-[#4B5563]">
                                   Q{q.fiscal_quarter}
                                 </th>
                               ))
                             }
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100">
+                        <tbody className="divide-y divide-[#E8E8E3]">
                           {[
                             { label: 'Revenue（营收）', key: 'revenue' as const },
                             { label: 'Net Income（净利润）', key: 'net_income' as const },
@@ -768,12 +768,12 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
                             { label: 'Operating Margin', key: 'operating_margin' as const },
                             { label: 'Gross Margin', key: 'gross_margin' as const },
                           ].map(metric => (
-                            <tr key={metric.key} className="hover:bg-slate-50">
-                              <td className="px-4 py-2.5 font-medium text-slate-800">{metric.label}</td>
+                            <tr key={metric.key} className="hover:bg-[#F5F5F0]">
+                              <td className="px-4 py-2.5 font-medium text-[#1F2937]">{metric.label}</td>
                               {annualDbQuarters
                                 .sort((a, b) => a.fiscal_quarter - b.fiscal_quarter)
                                 .map(q => (
-                                  <td key={q.period} className="px-4 py-2.5 text-right font-mono text-slate-800">
+                                  <td key={q.period} className="px-4 py-2.5 text-right font-mono text-[#1F2937]">
                                     {q[metric.key] || '-'}
                                   </td>
                                 ))
@@ -786,8 +786,8 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
                             { label: 'Net Income YoY', key: 'net_income_yoy' as const },
                             { label: 'EPS YoY', key: 'eps_yoy' as const },
                           ].map(metric => (
-                            <tr key={metric.key} className="hover:bg-slate-50 bg-slate-50/50">
-                              <td className="px-4 py-2.5 font-medium text-slate-500 text-xs">{metric.label}</td>
+                            <tr key={metric.key} className="hover:bg-[#F5F5F0] bg-[#F9F9F6]">
+                              <td className="px-4 py-2.5 font-medium text-[#6B7280] text-xs">{metric.label}</td>
                               {annualDbQuarters
                                 .sort((a, b) => a.fiscal_quarter - b.fiscal_quarter)
                                 .map(q => {
@@ -796,7 +796,7 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
                                     <td key={q.period} className="px-4 py-2.5 text-right">
                                       <span className={`font-mono text-xs font-medium ${
                                         val.startsWith('+') ? 'text-green-600' :
-                                        val.startsWith('-') ? 'text-red-500' : 'text-slate-400'
+                                        val.startsWith('-') ? 'text-red-500' : 'text-[#9CA3AF]'
                                       }`}>{val}</span>
                                     </td>
                                   )
@@ -808,7 +808,7 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
                       </table>
                     </div>
                   </div>
-                  <p className="text-xs text-slate-400 text-center">年度汇总展示该财年各季度核心指标 · 数据来源：数据API</p>
+                  <p className="text-xs text-[#9CA3AF] text-center">年度汇总展示该财年各季度核心指标 · 数据来源：数据API</p>
                 </div>
               )}
 
@@ -816,19 +816,19 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
               {!isAnnualView && hasFinancialData && (viewTab === 'financial' || !hasComparison) && (
                 <div className="mt-6">
                   {isLoadingTranscript ? (
-                    <div className="bg-white rounded-2xl border border-slate-200 p-4 flex items-center gap-3">
-                      <Loader2 className="h-4 w-4 text-slate-400 animate-spin" />
-                      <span className="text-sm text-slate-500">加载电话会议关键结论...</span>
+                    <div className="bg-white rounded-xl border border-[#E8E8E3] p-4 flex items-center gap-3">
+                      <Loader2 className="h-4 w-4 text-[#9CA3AF] animate-spin" />
+                      <span className="text-sm text-[#6B7280]">加载电话会议关键结论...</span>
                     </div>
                   ) : transcriptMeta && keyConclusions.length > 0 ? (
-                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+                    <div className="bg-white rounded-xl border border-[#E8E8E3] shadow-sm p-6">
                       <div className="flex items-center gap-3 mb-4">
                         <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-violet-100 to-purple-100 flex items-center justify-center">
                           <MessageSquareQuote className="h-4 w-4 text-violet-600" />
                         </div>
                         <div>
-                          <h3 className="text-sm font-semibold text-slate-800">Earnings Call 关键结论</h3>
-                          <p className="text-xs text-slate-500">
+                          <h3 className="text-sm font-semibold text-[#1F2937]">Earnings Call 关键结论</h3>
+                          <p className="text-xs text-[#6B7280]">
                             {selectedPeriod} · {transcriptMeta.transcript_date} · 点击查看原文
                           </p>
                         </div>
@@ -837,7 +837,7 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
                       {/* Overall summary at the top */}
                       {keyConclusions.find(c => c.category === 'overall_summary') && (
                         <div className="mb-4 p-4 bg-gradient-to-r from-violet-50 to-purple-50 rounded-xl border border-violet-200">
-                          <p className="text-sm text-slate-800 leading-relaxed font-medium">
+                          <p className="text-sm text-[#1F2937] leading-relaxed font-medium">
                             {keyConclusions.find(c => c.category === 'overall_summary')?.summary}
                           </p>
                         </div>
@@ -847,11 +847,11 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
                         {keyConclusions.filter(c => c.category !== 'overall_summary').map((c, idx) => {
                           const categoryColors: Record<string, string> = {
                             guidance: 'bg-amber-50 border-amber-200 hover:bg-amber-100',
-                            strategy: 'bg-blue-50 border-blue-200 hover:bg-blue-100',
+                            strategy: 'bg-emerald-50 border-emerald-200 hover:bg-emerald-100',
                             risk: 'bg-red-50 border-red-200 hover:bg-red-100',
                             investment: 'bg-green-50 border-green-200 hover:bg-green-100',
-                            performance: 'bg-indigo-50 border-indigo-200 hover:bg-indigo-100',
-                            other: 'bg-slate-50 border-slate-200 hover:bg-slate-100',
+                            performance: 'bg-teal-50 border-teal-200 hover:bg-teal-100',
+                            other: 'bg-[#F5F5F0] border-[#E8E8E3] hover:bg-[#EAEAE5]',
                           }
                           const categoryLabels: Record<string, string> = {
                             guidance: '业绩指引',
@@ -870,22 +870,22 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
                               className={`w-full text-left p-3.5 rounded-xl border transition-all cursor-pointer ${colorClass}`}
                             >
                               <div className="flex items-start justify-between gap-2 mb-1">
-                                <span className="text-xs font-semibold text-slate-500">
+                                <span className="text-xs font-semibold text-[#6B7280]">
                                   {categoryLabels[c.category] || c.category}
                                 </span>
-                                <span className="text-[10px] text-slate-400 flex-shrink-0">
+                                <span className="text-[10px] text-[#9CA3AF] flex-shrink-0">
                                   📎 点击查看原文
                                 </span>
                               </div>
-                              <p className="text-sm text-slate-800 leading-relaxed mb-2">
+                              <p className="text-sm text-[#1F2937] leading-relaxed mb-2">
                                 {c.summary}
                               </p>
                               {c.original_quote && (
-                                <div className="mt-1.5 pt-1.5 border-t border-slate-100">
-                                  <p className="text-xs text-slate-400 italic leading-relaxed line-clamp-2">
+                                <div className="mt-1.5 pt-1.5 border-t border-[#E8E8E3]">
+                                  <p className="text-xs text-[#9CA3AF] italic leading-relaxed line-clamp-2">
                                     "{c.original_quote.slice(0, 150)}{c.original_quote.length > 150 ? '...' : ''}"
                                   </p>
-                                  <p className="text-[10px] text-slate-400 mt-0.5">
+                                  <p className="text-[10px] text-[#9CA3AF] mt-0.5">
                                     — {c.speaker} · {selectedPeriod} Earnings Call
                                   </p>
                                 </div>
@@ -896,10 +896,10 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
                       </div>
                     </div>
                   ) : transcriptMeta ? (
-                    <div className="bg-white rounded-2xl border border-slate-200 p-4">
+                    <div className="bg-white rounded-xl border border-[#E8E8E3] p-4">
                       <div className="flex items-center gap-3">
                         <MessageSquareQuote className="h-4 w-4 text-violet-400" />
-                        <span className="text-sm text-slate-500">
+                        <span className="text-sm text-[#6B7280]">
                           Earnings Call 记录已入库（{transcriptMeta.transcript_date}），关键结论提取中...
                         </span>
                       </div>
@@ -911,28 +911,28 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
               {/* Modal: Show original transcript context */}
               {modalConclusion && (
                 <div className="fixed inset-0 z-50 overflow-hidden">
-                  <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setModalConclusion(null)} />
-                  <div className="absolute inset-6 md:inset-12 lg:inset-16 bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col">
-                    <div className="flex-shrink-0 px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-violet-50 to-purple-50">
+                  <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" onClick={() => setModalConclusion(null)} />
+                  <div className="absolute inset-6 md:inset-12 lg:inset-16 bg-white rounded-xl shadow-soft-lg overflow-hidden flex flex-col">
+                    <div className="flex-shrink-0 px-6 py-4 border-b border-[#E8E8E3] bg-gradient-to-r from-violet-50 to-purple-50">
                       <div className="flex items-center justify-between">
                         <div>
-                          <h2 className="text-lg font-bold text-slate-900">Earnings Call 原文</h2>
-                          <p className="text-sm text-slate-500">
+                          <h2 className="text-lg font-bold text-[#1F2937]">Earnings Call 原文</h2>
+                          <p className="text-sm text-[#6B7280]">
                             {selectedPeriod} · {transcriptMeta?.transcript_date} · 发言人: {modalConclusion.speaker}
                           </p>
                         </div>
                         <button
                           onClick={() => setModalConclusion(null)}
-                          className="h-9 w-9 rounded-lg hover:bg-slate-100 flex items-center justify-center"
+                          className="h-9 w-9 rounded-lg hover:bg-[#F5F5F0] flex items-center justify-center"
                         >
-                          <span className="text-xl text-slate-400">×</span>
+                          <span className="text-xl text-[#9CA3AF]">×</span>
                         </button>
                       </div>
 
                       {/* Highlighted conclusion */}
                       <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                         <p className="text-xs font-semibold text-yellow-700 mb-1">关键结论</p>
-                        <p className="text-sm text-slate-800 font-medium">{modalConclusion.summary}</p>
+                        <p className="text-sm text-[#1F2937] font-medium">{modalConclusion.summary}</p>
                       </div>
                     </div>
 
@@ -950,7 +950,7 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
                           highlightQuote={modalConclusion.original_quote}
                         />
                       ) : (
-                        <p className="text-slate-500 text-center py-10">无法加载原文内容</p>
+                        <p className="text-[#6B7280] text-center py-10">无法加载原文内容</p>
                       )}
                     </div>
                   </div>
@@ -959,14 +959,14 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
 
               {/* No data at all */}
               {!hasFinancialData && (
-                <div className="text-center py-16 bg-white rounded-2xl border border-slate-200">
-                  <div className="h-14 w-14 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-4">
-                    <FileText className="h-7 w-7 text-slate-400" />
+                <div className="text-center py-16 bg-white rounded-xl border border-[#E8E8E3]">
+                  <div className="h-14 w-14 rounded-xl bg-[#F5F5F0] flex items-center justify-center mx-auto mb-4">
+                    <FileText className="h-7 w-7 text-[#9CA3AF]" />
                   </div>
-                  <h3 className="text-base font-semibold text-slate-700 mb-2">
+                  <h3 className="text-base font-semibold text-[#4B5563] mb-2">
                     {selectedPeriod} 暂无财报数据
                   </h3>
-                  <p className="text-sm text-slate-500">
+                  <p className="text-sm text-[#6B7280]">
                     财报数据由系统每日自动获取，该{isAnnualView ? '年度' : isSemiAnnual ? '半年度' : '季度'}暂未收录
                   </p>
                 </div>
@@ -974,7 +974,7 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
             </>
           ) : (
             <div className="text-center py-20">
-              <p className="text-slate-500">请从左侧选择一个季度查看财报数据</p>
+              <p className="text-[#6B7280]">请从左侧选择一个季度查看财报数据</p>
             </div>
           )}
         </div>
@@ -1062,29 +1062,29 @@ function DbQuarterDetailView({ quarter, allQuarters, period }: { quarter: DbQuar
   const deltaColor = (v: string) => {
     if (v.startsWith('+')) return 'text-green-600'
     if (v.startsWith('-')) return 'text-red-500'
-    return 'text-slate-600'
+    return 'text-[#4B5563]'
   }
 
   return (
     <div className="space-y-6">
       {/* Core Metrics */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h3 className="text-sm font-semibold text-blue-600 mb-1 flex items-center gap-2">
+      <div className="bg-white rounded-xl border border-[#E8E8E3] shadow-sm p-6">
+        <h3 className="text-sm font-semibold text-emerald-600 mb-1 flex items-center gap-2">
           <FileText className="h-4 w-4" />
           {period} 财报核心指标
         </h3>
-        {quarter.filing_date && <p className="text-xs text-slate-400 mb-4">报告日期：{quarter.filing_date}</p>}
+        {quarter.filing_date && <p className="text-xs text-[#9CA3AF] mb-4">报告日期：{quarter.filing_date}</p>}
 
-        <div className="overflow-x-auto rounded-xl border border-slate-200">
+        <div className="overflow-x-auto rounded-xl border border-[#E8E8E3]">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-slate-50">
-                <th className="px-4 py-3 text-left font-semibold text-slate-600">指标</th>
-                <th className="px-4 py-3 text-right font-semibold text-slate-600">数值</th>
-                <th className="px-4 py-3 text-right font-semibold text-slate-600">同比 (YoY)</th>
+              <tr className="bg-[#F5F5F0]">
+                <th className="px-4 py-3 text-left font-semibold text-[#4B5563]">指标</th>
+                <th className="px-4 py-3 text-right font-semibold text-[#4B5563]">数值</th>
+                <th className="px-4 py-3 text-right font-semibold text-[#4B5563]">同比 (YoY)</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-[#E8E8E3]">
               {[
                 { label: 'Revenue（营收）', val: quarter.revenue, yoy: getYoY('revenue_growth', 'revenue') },
                 { label: 'Cost of Revenue（营业成本）', val: fm ? formatDollarDisplay(fm.cost_of_revenue) : null, yoy: getYoY(null, 'cost_of_revenue') },
@@ -1106,13 +1106,13 @@ function DbQuarterDetailView({ quarter, allQuarters, period }: { quarter: DbQuar
                 { label: 'Dividend Per Share（每股分红）', val: ratios?.dividend_per_share != null && ratios.dividend_per_share !== 0 ? `$${Number(ratios.dividend_per_share).toFixed(4)}` : null, yoy: '-' },
                 { label: 'Dividend Yield（股息率）', val: ratios?.dividend_yield != null && ratios.dividend_yield !== 0 ? fmtPct(ratios.dividend_yield) : null, yoy: '-' },
               ].filter(r => r.val && r.val !== '-').map((row, idx) => (
-                <tr key={idx} className="hover:bg-slate-50">
-                  <td className="px-4 py-2.5 font-medium text-slate-800 text-sm">{row.label}</td>
-                  <td className="px-4 py-2.5 text-right font-mono text-slate-800">{row.val}</td>
+                <tr key={idx} className="hover:bg-[#F5F5F0]">
+                  <td className="px-4 py-2.5 font-medium text-[#1F2937] text-sm">{row.label}</td>
+                  <td className="px-4 py-2.5 text-right font-mono text-[#1F2937]">{row.val}</td>
                   <td className="px-4 py-2.5 text-right">
                     {row.yoy && row.yoy !== '-' ? (
                       <span className={`font-mono font-medium ${deltaColor(row.yoy)}`}>{row.yoy}</span>
-                    ) : <span className="text-slate-300">-</span>}
+                    ) : <span className="text-[#D1D5DB]">-</span>}
                   </td>
                 </tr>
               ))}
@@ -1123,13 +1123,13 @@ function DbQuarterDetailView({ quarter, allQuarters, period }: { quarter: DbQuar
 
       {/* Segment Revenue */}
       {segments && Object.keys(segments).length > 0 && (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-          <h3 className="text-sm font-semibold text-indigo-600 mb-4">分部收入</h3>
+        <div className="bg-white rounded-xl border border-[#E8E8E3] shadow-sm p-6">
+          <h3 className="text-sm font-semibold text-emerald-600 mb-4">分部收入</h3>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             {Object.entries(segments).map(([name, val]) => (
-              <div key={name} className="p-3 bg-indigo-50/50 rounded-xl border border-indigo-100">
-                <div className="text-xs text-indigo-600 font-medium mb-1">{name}</div>
-                <div className="text-sm font-semibold text-slate-800 font-mono">{formatDollarDisplay(val as string)}</div>
+              <div key={name} className="p-3 bg-emerald-50/50 rounded-xl border border-emerald-100">
+                <div className="text-xs text-emerald-600 font-medium mb-1">{name}</div>
+                <div className="text-sm font-semibold text-[#1F2937] font-mono">{formatDollarDisplay(val as string)}</div>
               </div>
             ))}
           </div>
@@ -1138,13 +1138,13 @@ function DbQuarterDetailView({ quarter, allQuarters, period }: { quarter: DbQuar
 
       {/* Geographic Revenue */}
       {regions && Object.keys(regions).length > 0 && (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <div className="bg-white rounded-xl border border-[#E8E8E3] shadow-sm p-6">
           <h3 className="text-sm font-semibold text-teal-600 mb-4">地区收入</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {Object.entries(regions).map(([name, val]) => (
               <div key={name} className="p-3 bg-teal-50/50 rounded-xl border border-teal-100">
                 <div className="text-xs text-teal-600 font-medium mb-1">{name}</div>
-                <div className="text-sm font-semibold text-slate-800 font-mono">{formatDollarDisplay(val as string)}</div>
+                <div className="text-sm font-semibold text-[#1F2937] font-mono">{formatDollarDisplay(val as string)}</div>
               </div>
             ))}
           </div>
@@ -1153,7 +1153,7 @@ function DbQuarterDetailView({ quarter, allQuarters, period }: { quarter: DbQuar
 
       {/* Balance Sheet Snapshot */}
       {fm && (fm.total_assets || fm.total_equity || fm.cash_and_equivalents) && (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <div className="bg-white rounded-xl border border-[#E8E8E3] shadow-sm p-6">
           <h3 className="text-sm font-semibold text-amber-600 mb-4">资产负债概况</h3>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             {[
@@ -1165,12 +1165,12 @@ function DbQuarterDetailView({ quarter, allQuarters, period }: { quarter: DbQuar
             ].filter(r => r.val && parseFloat(r.val) !== 0).map(item => (
               <div key={item.label} className="p-3 bg-amber-50/50 rounded-xl border border-amber-100">
                 <div className="text-xs text-amber-600 font-medium mb-1">{item.label}</div>
-                <div className="text-sm font-semibold text-slate-800 font-mono">{formatDollarDisplay(item.val)}</div>
+                <div className="text-sm font-semibold text-[#1F2937] font-mono">{formatDollarDisplay(item.val)}</div>
               </div>
             ))}
           </div>
           {ratios && (
-            <div className="mt-3 flex gap-4 text-xs text-slate-500">
+            <div className="mt-3 flex gap-4 text-xs text-[#6B7280]">
               {ratios.current_ratio > 0 && <span>流动比率: {Number(ratios.current_ratio).toFixed(2)}</span>}
               {ratios.debt_to_equity > 0 && <span>负债权益比: {Number(ratios.debt_to_equity).toFixed(2)}</span>}
             </div>
@@ -1178,7 +1178,7 @@ function DbQuarterDetailView({ quarter, allQuarters, period }: { quarter: DbQuar
         </div>
       )}
 
-      <p className="text-xs text-slate-400 text-center">
+      <p className="text-xs text-[#9CA3AF] text-center">
         数据来源：数据API · 客观数据展示，不含任何主观评价 · 上传研报可查看对比分析
       </p>
     </div>
@@ -1272,7 +1272,7 @@ function TranscriptContent({ content, date, period, highlightSpeaker, highlightQ
 
   // Color palette
   const colors = [
-    'bg-blue-50 border-blue-200', 'bg-violet-50 border-violet-200',
+    'bg-emerald-50 border-emerald-200', 'bg-violet-50 border-violet-200',
     'bg-emerald-50 border-emerald-200', 'bg-amber-50 border-amber-200',
     'bg-rose-50 border-rose-200', 'bg-cyan-50 border-cyan-200',
   ]
@@ -1295,17 +1295,17 @@ function TranscriptContent({ content, date, period, highlightSpeaker, highlightQ
 
     return (
       <>
-        <div className="text-xs text-slate-400 mb-3 pb-2 border-b border-slate-100">来源：{reference}</div>
+        <div className="text-xs text-[#9CA3AF] mb-3 pb-2 border-b border-[#E8E8E3]">来源：{reference}</div>
         <div className="space-y-3">
           {paragraphs.map((para, idx) => {
             const isTarget = idx === targetIdx
             return (
               <div
                 key={idx}
-                className={`p-3 rounded-lg border ${isTarget ? 'border-yellow-300 ring-2 ring-yellow-100 bg-yellow-50/30' : 'bg-slate-50 border-slate-200'}`}
+                className={`p-3 rounded-lg border ${isTarget ? 'border-yellow-300 ring-2 ring-yellow-100 bg-yellow-50/30' : 'bg-[#F5F5F0] border-[#E8E8E3]'}`}
                 ref={el => { if (isTarget && el) setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100) }}
               >
-                <p className="text-sm leading-relaxed whitespace-pre-wrap text-slate-700">
+                <p className="text-sm leading-relaxed whitespace-pre-wrap text-[#4B5563]">
                   {isTarget ? renderWithHighlight(para) : para}
                 </p>
               </div>
@@ -1336,7 +1336,7 @@ function TranscriptContent({ content, date, period, highlightSpeaker, highlightQ
 
   return (
     <>
-      <div className="text-xs text-slate-400 mb-3 pb-2 border-b border-slate-100">来源：{reference}</div>
+      <div className="text-xs text-[#9CA3AF] mb-3 pb-2 border-b border-[#E8E8E3]">来源：{reference}</div>
       {segments.map((seg, idx) => {
         const isTarget = idx === targetSegIdx
         return (
@@ -1346,7 +1346,7 @@ function TranscriptContent({ content, date, period, highlightSpeaker, highlightQ
             ref={el => { if (isTarget && el) setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100) }}
           >
             <div className="flex items-center justify-between mb-1">
-              <span className={`text-xs font-semibold ${isTarget ? 'text-yellow-800' : 'text-slate-600'}`}>{seg.speaker}</span>
+              <span className={`text-xs font-semibold ${isTarget ? 'text-yellow-800' : 'text-[#4B5563]'}`}>{seg.speaker}</span>
               <span className="text-[10px] opacity-50">[{reference}]</span>
             </div>
             <p className="text-sm leading-relaxed whitespace-pre-wrap opacity-90">
@@ -1419,13 +1419,13 @@ function FinancialCharts({ dbQuarters, symbol, selectedPeriod, onPeriodSelect }:
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (!active || !payload?.length) return null
     return (
-      <div className="bg-white border border-slate-200 rounded-lg shadow-lg p-3 text-xs">
-        <p className="font-semibold text-slate-800 mb-1.5">{label}</p>
+      <div className="bg-white border border-[#E8E8E3] rounded-lg shadow-soft-md p-3 text-xs">
+        <p className="font-semibold text-[#1F2937] mb-1.5">{label}</p>
         {payload.map((p: any, i: number) => (
           <div key={i} className="flex items-center gap-2 mb-0.5">
             <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: p.color }} />
-            <span className="text-slate-600">{p.name}:</span>
-            <span className="font-medium text-slate-800">
+            <span className="text-[#4B5563]">{p.name}:</span>
+            <span className="font-medium text-[#1F2937]">
               {p.name.includes('YoY') ? `${p.value >= 0 ? '+' : ''}${p.value?.toFixed(2)}%` : `$${p.value?.toFixed(3)}B`}
             </span>
           </div>
@@ -1437,25 +1437,25 @@ function FinancialCharts({ dbQuarters, symbol, selectedPeriod, onPeriodSelect }:
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
       {/* Revenue Chart */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-        <h4 className="text-sm font-semibold text-slate-700 mb-3">Revenue 营收趋势</h4>
+      <div className="bg-white rounded-xl border border-[#E8E8E3] shadow-sm p-5">
+        <h4 className="text-sm font-semibold text-[#4B5563] mb-3">Revenue 营收趋势</h4>
         <ResponsiveContainer width="100%" height={220}>
           <ComposedChart data={chartData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-            <XAxis dataKey="period" tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} />
-            <YAxis yAxisId="left" tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false}
+            <CartesianGrid strokeDasharray="3 3" stroke="#F5F5F0" />
+            <XAxis dataKey="period" tick={{ fontSize: 10, fill: '#9CA3AF' }} tickLine={false} />
+            <YAxis yAxisId="left" tick={{ fontSize: 10, fill: '#9CA3AF' }} tickLine={false} axisLine={false}
               tickFormatter={(v: number) => `$${v}B`} />
-            <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false}
+            <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: '#9CA3AF' }} tickLine={false} axisLine={false}
               tickFormatter={(v: number) => `${v}%`} />
             <Tooltip content={<CustomTooltip />} />
-            <ReferenceLine yAxisId="right" y={0} stroke="#cbd5e1" strokeDasharray="3 3" />
+            <ReferenceLine yAxisId="right" y={0} stroke="#D1D5DB" strokeDasharray="3 3" />
             <Bar yAxisId="left" dataKey="revenue" name="Revenue" radius={[4, 4, 0, 0]}
               cursor="pointer" onClick={(_: any, idx: number) => onPeriodSelect(chartData[idx].periodKey)}>
               {chartData.map((entry, idx) => (
                 <Cell
                   key={idx}
-                  fill={entry.periodKey === selectedPeriod ? '#3b82f6' : '#93c5fd'}
-                  stroke={entry.periodKey === selectedPeriod ? '#2563eb' : 'none'}
+                  fill={entry.periodKey === selectedPeriod ? '#059669' : '#6ee7b7'}
+                  stroke={entry.periodKey === selectedPeriod ? '#047857' : 'none'}
                   strokeWidth={entry.periodKey === selectedPeriod ? 2 : 0}
                 />
               ))}
@@ -1467,18 +1467,18 @@ function FinancialCharts({ dbQuarters, symbol, selectedPeriod, onPeriodSelect }:
       </div>
 
       {/* Net Income Chart */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-        <h4 className="text-sm font-semibold text-slate-700 mb-3">Net Income 净利润趋势</h4>
+      <div className="bg-white rounded-xl border border-[#E8E8E3] shadow-sm p-5">
+        <h4 className="text-sm font-semibold text-[#4B5563] mb-3">Net Income 净利润趋势</h4>
         <ResponsiveContainer width="100%" height={220}>
           <ComposedChart data={chartData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-            <XAxis dataKey="period" tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} />
-            <YAxis yAxisId="left" tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false}
+            <CartesianGrid strokeDasharray="3 3" stroke="#F5F5F0" />
+            <XAxis dataKey="period" tick={{ fontSize: 10, fill: '#9CA3AF' }} tickLine={false} />
+            <YAxis yAxisId="left" tick={{ fontSize: 10, fill: '#9CA3AF' }} tickLine={false} axisLine={false}
               tickFormatter={(v: number) => `$${v}B`} />
-            <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false}
+            <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: '#9CA3AF' }} tickLine={false} axisLine={false}
               tickFormatter={(v: number) => `${v}%`} />
             <Tooltip content={<CustomTooltip />} />
-            <ReferenceLine yAxisId="right" y={0} stroke="#cbd5e1" strokeDasharray="3 3" />
+            <ReferenceLine yAxisId="right" y={0} stroke="#D1D5DB" strokeDasharray="3 3" />
             <Bar yAxisId="left" dataKey="netIncome" name="Net Income" radius={[4, 4, 0, 0]}
               cursor="pointer" onClick={(_: any, idx: number) => onPeriodSelect(chartData[idx].periodKey)}>
               {chartData.map((entry, idx) => (

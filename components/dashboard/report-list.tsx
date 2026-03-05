@@ -148,7 +148,7 @@ export default function ReportList({ onSelectAnalysis, onRefresh }: ReportListPr
     return (
       <div className="flex items-center justify-center py-16">
         <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+          <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
           <p className="text-sm text-gray-500">{t('common.loading')}</p>
         </div>
       </div>
@@ -221,14 +221,14 @@ export default function ReportList({ onSelectAnalysis, onRefresh }: ReportListPr
               }}
             >
               {/* Company Logo */}
-              <div className={`h-12 w-12 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-lg flex-shrink-0 ${
+              <div className={`h-12 w-12 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-soft-md flex-shrink-0 ${
                 report.processing 
                   ? isStale 
                     ? 'bg-gradient-to-br from-red-400 to-red-600 shadow-red-500/20'
                     : 'bg-gradient-to-br from-amber-400 to-orange-500 shadow-amber-500/20 animate-pulse'
                   : report.error
                     ? 'bg-gradient-to-br from-red-400 to-red-600 shadow-red-500/20'
-                    : 'bg-gradient-to-br from-blue-500 to-indigo-600 shadow-blue-500/20'
+                    : 'bg-gradient-to-br from-emerald-400 to-teal-500 shadow-blue-500/20'
               }`}>
                 {report.processing ? (
                   isStale ? (
@@ -347,13 +347,13 @@ export default function ReportList({ onSelectAnalysis, onRefresh }: ReportListPr
                 ) : report.processed ? (
                   <div className="flex items-center gap-2">
                     {getStatusIcon(report)}
-                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-emerald-100/50 text-emerald-700">
                       {t('common.completed')}
                     </span>
                   </div>
                 ) : null}
                 {report.processed && (
-                  <ChevronRight className="h-5 w-5 text-gray-300 group-hover:text-blue-500 transition-colors" />
+                  <ChevronRight className="h-5 w-5 text-gray-300 group-hover:text-emerald-600 transition-colors" />
                 )}
               </div>
             </div>

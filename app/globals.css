@@ -4,26 +4,28 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --background: 40 20% 98.4%;
+    --foreground: 220 26% 14%;
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 220 26% 14%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
-    --radius: 0.5rem;
+    --popover-foreground: 220 26% 14%;
+    --primary: 160 84% 39%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 40 12% 95.5%;
+    --secondary-foreground: 220 26% 14%;
+    --muted: 40 12% 95.5%;
+    --muted-foreground: 220 9% 46%;
+    --accent: 40 12% 95.5%;
+    --accent-foreground: 220 26% 14%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 45 10% 90%;
+    --input: 45 10% 90%;
+    --ring: 160 84% 39%;
+    --radius: 0.75rem;
+    --success: 160 84% 39%;
+    --warning: 38 92% 50%;
   }
 }
 
@@ -32,21 +34,35 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
   }
 }
 
 @layer components {
   .metric-card {
-    @apply bg-white border border-gray-200 rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow;
+    @apply bg-white border border-[#E8E8E3] rounded-xl p-6
+           shadow-[0_1px_3px_rgba(0,0,0,0.04)]
+           hover:shadow-[0_4px_12px_rgba(0,0,0,0.06)]
+           transition-shadow duration-200;
   }
-  
+
   .data-label {
-    @apply text-sm font-medium text-gray-600 uppercase tracking-wide;
+    @apply text-sm font-medium text-[#6B7280] tracking-wide;
   }
-  
+
   .data-value {
-    @apply text-2xl font-bold text-gray-900 mt-1;
+    @apply text-2xl font-semibold text-[#1F2937] mt-1;
   }
-  
+
+  .soft-shadow {
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
+  }
+
+  .soft-shadow-md {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04);
+  }
+
+  .soft-shadow-lg {
+    box-shadow: 0 8px 24px rgba(0,0,0,0.08), 0 2px 6px rgba(0,0,0,0.04);
+  }
 }
