@@ -1,6 +1,6 @@
 'use client'
 
-import { LogOut, Building2, Cpu, ShoppingBag, FileText, GitCompare, X, Menu } from 'lucide-react'
+import { LogOut, Building2, Cpu, ShoppingBag, Users, X, Menu } from 'lucide-react'
 import { usePathname, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { signOut } from 'next-auth/react'
@@ -35,25 +35,19 @@ const categoryNav = [
     name: '消费品公司',
     href: '/dashboard?category=CONSUMER_GOODS',
     icon: ShoppingBag,
-    description: 'Hermès, LV, 茅台',
+    description: 'Hermès, LV, LVMH',
     category: 'CONSUMER_GOODS',
     isActive: (path: string, cat: string | null) =>
       path === '/dashboard' && cat === 'CONSUMER_GOODS',
   },
-]
-
-const toolNav = [
   {
-    name: '分析报告',
-    href: '/dashboard/reports',
-    icon: FileText,
-    isActive: (path: string) => path.startsWith('/dashboard/reports'),
-  },
-  {
-    name: '横向对比',
-    href: '/dashboard/comparison',
-    icon: GitCompare,
-    isActive: (path: string) => path.startsWith('/dashboard/comparison'),
+    name: '13-F 名人持仓',
+    href: '/dashboard/13f',
+    icon: Users,
+    description: '巴菲特, 木头姐, 阿克曼',
+    category: null,
+    isActive: (path: string, _cat: string | null) =>
+      path.startsWith('/dashboard/13f'),
   },
 ]
 
@@ -110,28 +104,6 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
           )
         })}
 
-        <div className="my-4 border-t border-[#E8E8E3]" />
-
-        <p className="px-3 mb-2 text-[10px] font-medium text-[#9CA3AF] uppercase tracking-wider">工具</p>
-        {toolNav.map((item) => {
-          const Icon = item.icon
-          const isActive = item.isActive(pathname)
-          return (
-            <Link
-              key={item.name}
-              href={item.href}
-              onClick={onClose}
-              className={`flex items-center gap-3 px-3 py-2.5 text-sm rounded-lg transition-all duration-200 cursor-pointer ${
-                isActive
-                  ? 'bg-emerald-50 text-emerald-700 font-medium'
-                  : 'text-[#4B5563] hover:bg-[#F0F0EB] hover:text-[#1F2937]'
-              }`}
-            >
-              <Icon className={`h-[18px] w-[18px] flex-shrink-0 ${isActive ? 'text-emerald-600' : 'text-[#9CA3AF]'}`} />
-              <span>{item.name}</span>
-            </Link>
-          )
-        })}
       </nav>
 
       {/* User section */}
