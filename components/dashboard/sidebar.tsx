@@ -12,6 +12,9 @@ interface SidebarProps {
   onClose?: () => void
 }
 
+// 13-F 仅在 preview / development 环境可见，production 隐藏（代码保留）
+const IS_PRODUCTION = process.env.NEXT_PUBLIC_VERCEL_ENV === 'production'
+
 const categoryNav = [
   {
     name: 'AI应用公司',
@@ -40,7 +43,7 @@ const categoryNav = [
     isActive: (path: string, cat: string | null) =>
       path === '/dashboard' && cat === 'CONSUMER_GOODS',
   },
-  {
+  ...(!IS_PRODUCTION ? [{
     name: '13-F 名人持仓',
     href: '/dashboard/13f',
     icon: Users,
@@ -48,7 +51,7 @@ const categoryNav = [
     category: null,
     isActive: (path: string, _cat: string | null) =>
       path.startsWith('/dashboard/13f'),
-  },
+  }] : []),
 ]
 
 function SidebarContent({ onClose }: { onClose?: () => void }) {
