@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslations } from 'next-intl'
 import { 
   Loader2, 
@@ -41,31 +41,34 @@ export default function ProcessingTracker({ onRefresh }: ProcessingTrackerProps)
   const [isExpanded, setIsExpanded] = useState(false)
   const [isVisible, setIsVisible] = useState(true)
 
+  // Use refs to avoid stale closures without adding to useCallback deps
+  const prevProcessingCountRef = useRef<number>(0)
+  const onRefreshRef = useRef(onRefresh)
+  useEffect(() => { onRefreshRef.current = onRefresh }, [onRefresh])
+
   const fetchStatus = useCallback(async () => {
     try {
       const response = await fetch('/api/reports/status')
       if (response.ok) {
         const data = await response.json()
         setStatus(data)
-        
-        // If processing count changed to 0, trigger refresh
-        if (data.processingCount === 0 && status?.processingCount && status.processingCount > 0) {
-          onRefresh?.()
+
+        // If processing count dropped to 0, trigger parent refresh
+        if (data.processingCount === 0 && prevProcessingCountRef.current > 0) {
+          onRefreshRef.current?.()
         }
+        prevProcessingCountRef.current = data.processingCount
       }
     } catch (error) {
       console.error('Failed to fetch processing status:', error)
     }
-  }, [status?.processingCount, onRefresh])
+  }, [])
 
   useEffect(() => {
     fetchStatus()
-    
-    // Poll every 3 seconds while there are processing items
-    const interval = setInterval(() => {
-      fetchStatus()
-    }, 3000)
 
+    // Poll every 3 seconds to track processing items
+    const interval = setInterval(fetchStatus, 3000)
     return () => clearInterval(interval)
   }, [fetchStatus])
 

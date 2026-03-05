@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import {
   ArrowLeft, Upload, FileText, Loader2, CheckCircle2, AlertCircle,
   Trash2, BookOpen, MessageSquareQuote, ChevronDown, ChevronUp
@@ -129,6 +129,10 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
   const [isLoading, setIsLoading] = useState(true)
   const [viewMode, setViewMode] = useState<ViewMode>('quarterly')
   const [selectedPeriod, setSelectedPeriod] = useState<string | null>(null)
+
+  // Refs to avoid stale closures in effects without adding to deps
+  const analysesRef = useRef<Analysis[]>([])
+  const hasInitializedPeriod = useRef(false)
   const [viewTab, setViewTab] = useState<'financial' | 'comparison'>('financial')
 
   // Research comparison from DB
@@ -194,6 +198,7 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
           })
         }
       }
+      analysesRef.current = userAnalyses
       setAnalyses(userAnalyses)
 
       let fetchedQuarters: DbQuarter[] = []
@@ -221,13 +226,14 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
       }
       setDbQuarters(fetchedQuarters)
 
-      // Auto-select newest period that has any data
-      if (!selectedPeriod) {
-        // Prefer DB data (cron-fetched), fall back to user analyses
+      // Auto-select newest period only once on initial load
+      if (!hasInitializedPeriod.current) {
         if (fetchedQuarters.length > 0) {
           setSelectedPeriod(fetchedQuarters[0].period)
+          hasInitializedPeriod.current = true
         } else if (userAnalyses.length > 0 && userAnalyses[0].fiscal_year) {
           setSelectedPeriod(`${userAnalyses[0].fiscal_year} Q${userAnalyses[0].fiscal_quarter}`)
+          hasInitializedPeriod.current = true
         }
       }
 
@@ -236,15 +242,15 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
       console.error('Failed to load data:', error)
       setIsLoading(false)
     }
-  }, [symbol, selectedPeriod])
+  }, [symbol])
 
   useEffect(() => {
     loadData()
     const interval = setInterval(() => {
-      if (analyses.some(a => a.processing && !a.processed)) loadData()
+      if (analysesRef.current.some(a => a.processing && !a.processed)) loadData()
     }, 3000)
     return () => clearInterval(interval)
-  }, [loadData, analyses])
+  }, [loadData])
 
   const dbQuarterByPeriod = new Map<string, DbQuarter>()
   for (const dq of dbQuarters) {
