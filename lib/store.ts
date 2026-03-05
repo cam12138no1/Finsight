@@ -1,20 +1,18 @@
-// lib/store.ts - 用户隔离的数据存储
-// Hybrid storage: Uses Vercel Blob when available, falls back to in-memory for development
-
-import { put, list, del, head } from '@vercel/blob'
+// lib/store.ts - 用户隔离的数据存储 (Postgres-backed)
+import { sql } from '@vercel/postgres'
 import { AnalysisResult, ResultsTableRow, DriverDetail } from './ai/analyzer'
 
 export interface StoredAnalysis {
   id: string
-  user_id: string  // ★ 新增：用户ID，用于数据隔离
+  user_id: string
   company_name: string
   company_symbol: string
   report_type: string
   fiscal_year: number
   fiscal_quarter?: number
-  period?: string  // 格式化的期间，如 "Q4 2025"
-  category?: string  // 公司分类: AI_APPLICATION | AI_SUPPLY_CHAIN
-  request_id?: string  // 用于去重的请求ID
+  period?: string
+  category?: string
+  request_id?: string
   filing_date: string
   created_at: string
   processed: boolean
@@ -22,7 +20,6 @@ export interface StoredAnalysis {
   error?: string
   has_research_report?: boolean
   
-  // Complete analysis results (objective data extraction)
   one_line_conclusion?: string
   results_summary?: string
   results_table?: ResultsTableRow[]
@@ -51,7 +48,6 @@ export interface StoredAnalysis {
     guidance: string
     core_driver_quantified: string
     main_risk_quantified: string
-    // Legacy fields (kept for backward compat with old data)
     beat_miss?: string
     recommendation?: string
     position_action?: string
@@ -61,10 +57,8 @@ export interface StoredAnalysis {
     consensus_source: string
     key_differences: string[]
     analyst_blind_spots: string
-    // Legacy (kept for backward compat)
     beat_miss_summary?: string
   }
-  // Legacy fields (kept for backward compat with old data)
   model_impact?: {
     upgrade_factors: string[]
     downgrade_factors: string[]
@@ -87,65 +81,90 @@ export interface StoredAnalysis {
   }
 }
 
-const BLOB_PREFIX = 'analyses/'
+// Analysis fields that go into the JSONB analysis_data column
+const ANALYSIS_JSON_FIELDS = [
+  'one_line_conclusion', 'results_summary', 'results_table', 'results_explanation',
+  'drivers_summary', 'drivers', 'investment_roi', 'sustainability_risks',
+  'comparison_snapshot', 'research_comparison', 'model_impact', 'final_judgment',
+  'investment_committee_summary', 'metadata',
+] as const
 
-function isBlobAvailable(): boolean {
-  return !!process.env.BLOB_READ_WRITE_TOKEN
+function rowToStoredAnalysis(row: any): StoredAnalysis {
+  const analysis: StoredAnalysis = {
+    id: row.id,
+    user_id: row.user_id,
+    company_name: row.company_name,
+    company_symbol: row.company_symbol,
+    report_type: row.report_type,
+    fiscal_year: row.fiscal_year,
+    fiscal_quarter: row.fiscal_quarter ?? undefined,
+    period: row.period ?? undefined,
+    category: row.category ?? undefined,
+    request_id: row.request_id ?? undefined,
+    filing_date: row.filing_date,
+    created_at: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,
+    processed: row.processed ?? false,
+    processing: row.processing ?? false,
+    error: row.error ?? undefined,
+    has_research_report: row.has_research_report ?? false,
+  }
+
+  // Merge analysis_data JSONB into the flat object
+  if (row.analysis_data && typeof row.analysis_data === 'object') {
+    Object.assign(analysis, row.analysis_data)
+  }
+
+  return analysis
 }
 
-/**
- * ★★★ 用户隔离的数据存储 ★★★
- * 
- * 数据路径格式：analyses/user_{userId}/req_{requestId}.json
- * 每个用户只能访问自己的数据
- */
+function extractAnalysisData(input: Partial<StoredAnalysis>): Record<string, any> {
+  const data: Record<string, any> = {}
+  for (const field of ANALYSIS_JSON_FIELDS) {
+    if (input[field] !== undefined) {
+      data[field] = input[field]
+    }
+  }
+  return data
+}
+
 class AnalysisStore {
-  private memoryStore: Map<string, StoredAnalysis> = new Map()
-  private useBlob: boolean
+  private initialized = false
 
-  constructor() {
-    this.useBlob = isBlobAvailable()
-    console.log(`[Store] Initialized. Using Blob: ${this.useBlob}`)
-  }
-
-  // ★ 生成用户隔离的路径
-  private getUserPath(userId: string, requestId: string): string {
-    if (!userId) throw new Error('[Store] userId is required')
-    return `${BLOB_PREFIX}user_${userId}/req_${requestId}.json`
-  }
-
-  private getUserPrefix(userId: string): string {
-    if (!userId) throw new Error('[Store] userId is required')
-    return `${BLOB_PREFIX}user_${userId}/`
-  }
-
-  /**
-   * Fetch a private blob's content with proper authentication.
-   * Uses downloadUrl (signed) when available, otherwise falls back to
-   * blob.url with Bearer token in Authorization header.
-   */
-  private async fetchBlobContent(blob: { url: string; downloadUrl?: string; pathname: string }): Promise<Response> {
-    const downloadUrl = (blob as any).downloadUrl
-    if (downloadUrl) {
-      return fetch(downloadUrl)
-    }
-    const token = process.env.BLOB_READ_WRITE_TOKEN
-    return fetch(blob.url, {
-      headers: token ? { authorization: `Bearer ${token}` } : {},
-    })
-  }
-
-  // ★ 验证用户权限
-  private validateAccess(analysis: StoredAnalysis, userId: string): void {
-    if (analysis.user_id && analysis.user_id !== userId) {
-      console.error(`[Store] Access denied: user ${userId} tried to access user ${analysis.user_id}'s data`)
-      throw new Error('Access denied')
+  private async ensureTable(): Promise<void> {
+    if (this.initialized) return
+    try {
+      await sql`
+        CREATE TABLE IF NOT EXISTS uploaded_analyses (
+          id VARCHAR(100) PRIMARY KEY,
+          user_id VARCHAR(50) NOT NULL,
+          request_id VARCHAR(100),
+          company_name VARCHAR(255) NOT NULL,
+          company_symbol VARCHAR(20) NOT NULL,
+          report_type VARCHAR(50) NOT NULL,
+          fiscal_year INTEGER NOT NULL,
+          fiscal_quarter INTEGER,
+          period VARCHAR(20),
+          category VARCHAR(50),
+          filing_date VARCHAR(50) NOT NULL,
+          processed BOOLEAN DEFAULT FALSE,
+          processing BOOLEAN DEFAULT FALSE,
+          error TEXT,
+          has_research_report BOOLEAN DEFAULT FALSE,
+          analysis_data JSONB DEFAULT '{}'::jsonb,
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW()
+        )
+      `
+      await sql`CREATE INDEX IF NOT EXISTS idx_uploaded_analyses_user_id ON uploaded_analyses(user_id)`
+      await sql`CREATE INDEX IF NOT EXISTS idx_uploaded_analyses_symbol ON uploaded_analyses(company_symbol)`
+      await sql`CREATE INDEX IF NOT EXISTS idx_uploaded_analyses_request ON uploaded_analyses(user_id, request_id)`
+      this.initialized = true
+    } catch (error) {
+      console.error('[Store] Failed to ensure table:', error)
+      throw error
     }
   }
 
-  /**
-   * ★★★ 原子性添加：使用 requestId 作为唯一标识，userId 作为路径隔离 ★★★
-   */
   async addWithRequestId(
     userId: string,
     requestId: string,
@@ -154,153 +173,66 @@ class AnalysisStore {
     if (!userId || !requestId) {
       throw new Error('[Store] userId and requestId are required')
     }
+    await this.ensureTable()
 
     const id = `req_${requestId}`
-    const storedAnalysis: StoredAnalysis = {
-      id,
-      user_id: userId,
-      request_id: requestId,
-      ...analysis,
-    }
+    const analysisData = extractAnalysisData(analysis)
 
-    if (this.useBlob) {
-      try {
-        const blobPath = this.getUserPath(userId, requestId)
-        
-        await put(blobPath, JSON.stringify(storedAnalysis), {
-          access: 'private',
-          contentType: 'application/json',
-          addRandomSuffix: false,
-          allowOverwrite: true,
-        })
-        
-        console.log(`[Store] Added: user=${userId}, request=${requestId}`)
-        return storedAnalysis
-      } catch (error) {
-        console.error('[Store] Failed to add:', error)
-        throw error
-      }
-    }
+    const result = await sql`
+      INSERT INTO uploaded_analyses (
+        id, user_id, request_id, company_name, company_symbol, report_type,
+        fiscal_year, fiscal_quarter, period, category, filing_date,
+        processed, processing, error, has_research_report, analysis_data, created_at
+      ) VALUES (
+        ${id}, ${userId}, ${requestId},
+        ${analysis.company_name}, ${analysis.company_symbol}, ${analysis.report_type},
+        ${analysis.fiscal_year}, ${analysis.fiscal_quarter ?? null},
+        ${analysis.period ?? null}, ${analysis.category ?? null},
+        ${analysis.filing_date},
+        ${analysis.processed ?? false}, ${analysis.processing ?? false},
+        ${analysis.error ?? null}, ${analysis.has_research_report ?? false},
+        ${JSON.stringify(analysisData)}::jsonb,
+        ${analysis.created_at ?? new Date().toISOString()}
+      )
+      ON CONFLICT (id) DO UPDATE SET
+        processed = EXCLUDED.processed,
+        processing = EXCLUDED.processing,
+        error = EXCLUDED.error,
+        analysis_data = EXCLUDED.analysis_data,
+        updated_at = NOW()
+      RETURNING *
+    `
 
-    // Memory fallback
-    this.memoryStore.set(`${userId}:${id}`, storedAnalysis)
-    return storedAnalysis
+    console.log(`[Store] Added: user=${userId}, request=${requestId}`)
+    return rowToStoredAnalysis(result.rows[0])
   }
 
-  /**
-   * ★★★ 获取用户的所有记录 ★★★
-   */
   async getAll(userId: string): Promise<StoredAnalysis[]> {
     if (!userId) {
       console.warn('[Store] getAll called without userId, returning empty array')
       return []
     }
+    await this.ensureTable()
 
-    if (this.useBlob) {
-      try {
-        const prefix = this.getUserPrefix(userId)
-        const { blobs } = await list({ prefix })
+    const result = await sql`
+      SELECT * FROM uploaded_analyses
+      WHERE user_id = ${userId}
+      ORDER BY created_at DESC
+    `
 
-        // 去重：只保留每个pathname的最新版本
-        const latestMap = new Map<string, typeof blobs[0]>()
-        for (const blob of blobs) {
-          if (blob.pathname.endsWith('_index.json')) continue
-          
-          const existing = latestMap.get(blob.pathname)
-          if (!existing || new Date(blob.uploadedAt) > new Date(existing.uploadedAt)) {
-            latestMap.set(blob.pathname, blob)
-          }
-        }
-
-        const uniqueBlobs = Array.from(latestMap.values())
-        console.log(`[Store] User ${userId}: ${blobs.length} blobs, ${uniqueBlobs.length} unique`)
-
-        const analyses: StoredAnalysis[] = []
-        for (const blob of uniqueBlobs) {
-          try {
-            const response = await this.fetchBlobContent(blob)
-            if (response.ok) {
-              const analysis = await response.json() as StoredAnalysis
-              
-              if (!analysis.user_id || analysis.user_id === userId) {
-                analyses.push(analysis)
-              } else {
-                console.error(`[Store] Data corruption! File ${blob.pathname} has wrong user_id`)
-              }
-            } else {
-              console.error(`[Store] Failed to fetch ${blob.pathname}: HTTP ${response.status}`)
-            }
-          } catch (e) {
-            console.error(`[Store] Failed to fetch ${blob.pathname}:`, e)
-          }
-        }
-
-        analyses.sort((a, b) => 
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        )
-
-        console.log(`[Store] User ${userId}: returning ${analyses.length} records`)
-        return analyses
-      } catch (error) {
-        console.error('[Store] getAll failed:', error)
-        return []
-      }
-    }
-
-    // Memory fallback
-    return Array.from(this.memoryStore.values())
-      .filter(a => a.user_id === userId)
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    console.log(`[Store] User ${userId}: returning ${result.rows.length} records`)
+    return result.rows.map(rowToStoredAnalysis)
   }
 
-  /**
-   * ★★★ 兼容旧代码：不传userId时，获取所有数据（仅用于迁移） ★★★
-   */
   async getAllLegacy(): Promise<StoredAnalysis[]> {
-    if (this.useBlob) {
-      try {
-        const { blobs } = await list({ prefix: BLOB_PREFIX })
-        
-        const latestMap = new Map<string, typeof blobs[0]>()
-        for (const blob of blobs) {
-          if (blob.pathname.endsWith('_index.json')) continue
-          const existing = latestMap.get(blob.pathname)
-          if (!existing || new Date(blob.uploadedAt) > new Date(existing.uploadedAt)) {
-            latestMap.set(blob.pathname, blob)
-          }
-        }
-
-        const uniqueBlobs = Array.from(latestMap.values())
-        const analyses: StoredAnalysis[] = []
-        
-        for (const blob of uniqueBlobs) {
-          try {
-            const response = await this.fetchBlobContent(blob)
-            if (response.ok) {
-              analyses.push(await response.json())
-            }
-          } catch (e) {
-            console.error(`[Store] Error fetching ${blob.pathname}:`, e)
-          }
-        }
-        
-        return analyses.sort((a, b) => 
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        )
-      } catch (error) {
-        console.error('[Store] getAllLegacy failed:', error)
-        return []
-      }
-    }
-    
-    return Array.from(this.memoryStore.values()).sort(
-      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    )
+    await this.ensureTable()
+    const result = await sql`
+      SELECT * FROM uploaded_analyses
+      ORDER BY created_at DESC
+    `
+    return result.rows.map(rowToStoredAnalysis)
   }
 
-  /**
-   * ★★★ 更新记录 ★★★
-   */
   async update(
     userId: string,
     id: string,
@@ -310,179 +242,130 @@ class AnalysisStore {
       console.warn('[Store] update called without userId')
       return undefined
     }
-    
+    await this.ensureTable()
+
     const existing = await this.get(userId, id)
     if (!existing) {
       console.warn(`[Store] Update failed: record not found user=${userId}, id=${id}`)
       return undefined
     }
 
-    // 不需要再次验证，get 已经验证过了
-    const updated = { ...existing, ...updates, user_id: userId }
-    
-    if (this.useBlob) {
-      const requestId = existing.request_id || id.replace('req_', '')
-      const blobPath = this.getUserPath(userId, requestId)
-      
-      await put(blobPath, JSON.stringify(updated), {
-        access: 'private',
-        contentType: 'application/json',
-        addRandomSuffix: false,
-        allowOverwrite: true,
-      })
-      
-      console.log(`[Store] Updated: user=${userId}, id=${id}`)
-      return updated
-    }
+    const existingData = extractAnalysisData(existing)
+    const newData = extractAnalysisData(updates)
+    const mergedData = { ...existingData, ...newData }
 
-    this.memoryStore.set(`${userId}:${id}`, updated)
-    return updated
+    // When 'error' key is explicitly present (even as undefined), clear it
+    const errorValue = 'error' in updates ? (updates.error ?? null) : (existing.error ?? null)
+
+    const result = await sql`
+      UPDATE uploaded_analyses SET
+        processed = ${updates.processed ?? existing.processed},
+        processing = ${updates.processing ?? existing.processing ?? false},
+        error = ${errorValue},
+        has_research_report = ${updates.has_research_report ?? existing.has_research_report ?? false},
+        company_name = ${updates.company_name ?? existing.company_name},
+        company_symbol = ${updates.company_symbol ?? existing.company_symbol},
+        analysis_data = ${JSON.stringify(mergedData)}::jsonb,
+        updated_at = NOW()
+      WHERE id = ${id} AND user_id = ${userId}
+      RETURNING *
+    `
+
+    if (result.rows.length === 0) return undefined
+    console.log(`[Store] Updated: user=${userId}, id=${id}`)
+    return rowToStoredAnalysis(result.rows[0])
   }
 
-  /**
-   * ★★★ 获取单个记录 ★★★
-   */
   async get(userId: string, id: string): Promise<StoredAnalysis | undefined> {
     if (!userId) {
       console.warn('[Store] get called without userId')
       return undefined
     }
+    await this.ensureTable()
 
-    if (this.useBlob) {
-      try {
-        const prefix = this.getUserPrefix(userId)
-        const { blobs } = await list({ prefix: `${prefix}${id}` })
-        if (blobs.length === 0) return undefined
+    const result = await sql`
+      SELECT * FROM uploaded_analyses
+      WHERE id = ${id} AND user_id = ${userId}
+    `
 
-        // 获取最新版本
-        const latestBlob = blobs.reduce((latest, blob) => 
-          new Date(blob.uploadedAt) > new Date(latest.uploadedAt) ? blob : latest
-        )
-
-        const response = await this.fetchBlobContent(latestBlob)
-        if (!response.ok) return undefined
-
-        const analysis = await response.json() as StoredAnalysis
-        
-        // 验证用户权限
-        if (analysis.user_id && analysis.user_id !== userId) {
-          console.error(`[Store] Access denied for user ${userId}`)
-          return undefined
-        }
-        
-        return analysis
-      } catch (error) {
-        console.error('[Store] get failed:', error)
-        return undefined
-      }
-    }
-
-    return this.memoryStore.get(`${userId}:${id}`)
+    if (result.rows.length === 0) return undefined
+    return rowToStoredAnalysis(result.rows[0])
   }
 
-  /**
-   * ★★★ 通过requestId获取 ★★★
-   */
   async getByRequestId(userId: string, requestId: string): Promise<StoredAnalysis | undefined> {
     if (!userId || !requestId) return undefined
     return this.get(userId, `req_${requestId}`)
   }
 
-  /**
-   * ★★★ 删除记录 ★★★
-   */
   async delete(userId: string, id: string): Promise<boolean> {
     if (!userId) {
       console.warn('[Store] delete called without userId')
       return false
     }
+    await this.ensureTable()
 
-    if (this.useBlob) {
-      try {
-        const prefix = this.getUserPrefix(userId)
-        const { blobs } = await list({ prefix: `${prefix}${id}` })
-        
-        if (blobs.length === 0) return false
-        
-        // 删除所有版本
-        for (const blob of blobs) {
-          await del(blob.url)
-        }
-        
-        console.log(`[Store] Deleted: user=${userId}, id=${id}`)
-        return true
-      } catch (error) {
-        console.error('[Store] delete failed:', error)
-        return false
-      }
-    }
+    const result = await sql`
+      DELETE FROM uploaded_analyses
+      WHERE id = ${id} AND user_id = ${userId}
+      RETURNING id
+    `
 
-    const key = `${userId}:${id}`
-    const existed = this.memoryStore.has(key)
-    this.memoryStore.delete(key)
-    return existed
+    const deleted = (result.rowCount || 0) > 0
+    if (deleted) console.log(`[Store] Deleted: user=${userId}, id=${id}`)
+    return deleted
   }
 
-  /**
-   * ★★★ 删除过期的处理中任务 ★★★
-   */
   async deleteStale(userId: string, maxAgeMinutes: number = 30): Promise<number> {
-    const all = await this.getAll(userId)
-    const now = Date.now()
-    let deletedCount = 0
-    
-    for (const analysis of all) {
-      if (analysis.processing) {
-        const createdAt = new Date(analysis.created_at).getTime()
-        const ageMinutes = (now - createdAt) / (1000 * 60)
-        
-        if (ageMinutes > maxAgeMinutes) {
-          const deleted = await this.delete(userId, analysis.id)
-          if (deleted) {
-            deletedCount++
-            console.log(`[Store] Deleted stale: ${analysis.id} (age: ${ageMinutes.toFixed(1)}min)`)
-          }
-        }
-      }
-    }
-    
-    return deletedCount
+    await this.ensureTable()
+    const result = await sql`
+      DELETE FROM uploaded_analyses
+      WHERE user_id = ${userId}
+        AND processing = true
+        AND created_at < NOW() - INTERVAL '1 minute' * ${maxAgeMinutes}
+      RETURNING id
+    `
+    const count = result.rowCount || 0
+    if (count > 0) console.log(`[Store] Deleted ${count} stale records for user ${userId}`)
+    return count
   }
 
-  /**
-   * ★★★ 获取用户统计信息 ★★★
-   */
   async getUserStats(userId: string): Promise<{
     total: number
     processing: number
     completed: number
     failed: number
   }> {
-    const all = await this.getAll(userId)
+    await this.ensureTable()
+    const result = await sql`
+      SELECT
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE processing = true)::int AS processing,
+        COUNT(*) FILTER (WHERE processed = true AND error IS NULL)::int AS completed,
+        COUNT(*) FILTER (WHERE error IS NOT NULL)::int AS failed
+      FROM uploaded_analyses
+      WHERE user_id = ${userId}
+    `
+    const row = result.rows[0]
     return {
-      total: all.length,
-      processing: all.filter(a => a.processing).length,
-      completed: all.filter(a => a.processed && !a.error).length,
-      failed: all.filter(a => a.error).length,
+      total: row.total || 0,
+      processing: row.processing || 0,
+      completed: row.completed || 0,
+      failed: row.failed || 0,
     }
   }
 
-  /**
-   * ★★★ 清空用户数据（危险操作） ★★★
-   */
   async clearUser(userId: string): Promise<number> {
     if (!userId) return 0
-    
-    const all = await this.getAll(userId)
-    let deletedCount = 0
-    
-    for (const analysis of all) {
-      const deleted = await this.delete(userId, analysis.id)
-      if (deleted) deletedCount++
-    }
-    
-    console.log(`[Store] Cleared ${deletedCount} records for user ${userId}`)
-    return deletedCount
+    await this.ensureTable()
+
+    const result = await sql`
+      DELETE FROM uploaded_analyses
+      WHERE user_id = ${userId}
+      RETURNING id
+    `
+    const count = result.rowCount || 0
+    console.log(`[Store] Cleared ${count} records for user ${userId}`)
+    return count
   }
 }
 
