@@ -72,15 +72,10 @@ async function main() {
 
   for (const blob of uniqueBlobs) {
     try {
-      // Fetch blob content (use downloadUrl for private blobs)
-      const fetchUrl = (blob as any).downloadUrl || blob.url
       const token = process.env.BLOB_READ_WRITE_TOKEN
-      const response = await fetch(fetchUrl === blob.url && token
-        ? blob.url
-        : fetchUrl, fetchUrl === blob.url && token
-        ? { headers: { authorization: `Bearer ${token}` } }
-        : undefined
-      )
+      const response = await fetch(blob.url, {
+        headers: token ? { authorization: `Bearer ${token}` } : {},
+      })
 
       if (!response.ok) {
         console.error(`  SKIP ${blob.pathname}: HTTP ${response.status}`)
