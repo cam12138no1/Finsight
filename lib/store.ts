@@ -1,7 +1,7 @@
 // lib/store.ts - 用户隔离的数据存储
 // Hybrid storage: Uses Vercel Blob when available, falls back to in-memory for development
 
-import { put, list, del } from '@vercel/blob'
+import { put, list, del, head } from '@vercel/blob'
 import { AnalysisResult, ResultsTableRow, DriverDetail } from './ai/analyzer'
 
 export interface StoredAnalysis {
@@ -119,6 +119,22 @@ class AnalysisStore {
     return `${BLOB_PREFIX}user_${userId}/`
   }
 
+  /**
+   * Fetch a private blob's content with proper authentication.
+   * Uses downloadUrl (signed) when available, otherwise falls back to
+   * blob.url with Bearer token in Authorization header.
+   */
+  private async fetchBlobContent(blob: { url: string; downloadUrl?: string; pathname: string }): Promise<Response> {
+    const downloadUrl = (blob as any).downloadUrl
+    if (downloadUrl) {
+      return fetch(downloadUrl)
+    }
+    const token = process.env.BLOB_READ_WRITE_TOKEN
+    return fetch(blob.url, {
+      headers: token ? { authorization: `Bearer ${token}` } : {},
+    })
+  }
+
   // ★ 验证用户权限
   private validateAccess(analysis: StoredAnalysis, userId: string): void {
     if (analysis.user_id && analysis.user_id !== userId) {
@@ -202,8 +218,7 @@ class AnalysisStore {
         const analyses: StoredAnalysis[] = []
         for (const blob of uniqueBlobs) {
           try {
-            const fetchUrl = (blob as any).downloadUrl || blob.url
-            const response = await fetch(fetchUrl)
+            const response = await this.fetchBlobContent(blob)
             if (response.ok) {
               const analysis = await response.json() as StoredAnalysis
               
@@ -260,8 +275,7 @@ class AnalysisStore {
         
         for (const blob of uniqueBlobs) {
           try {
-            const fetchUrl = (blob as any).downloadUrl || blob.url
-            const response = await fetch(fetchUrl)
+            const response = await this.fetchBlobContent(blob)
             if (response.ok) {
               analyses.push(await response.json())
             }
@@ -345,8 +359,7 @@ class AnalysisStore {
           new Date(blob.uploadedAt) > new Date(latest.uploadedAt) ? blob : latest
         )
 
-        const fetchUrl = (latestBlob as any).downloadUrl || latestBlob.url
-        const response = await fetch(fetchUrl)
+        const response = await this.fetchBlobContent(latestBlob)
         if (!response.ok) return undefined
 
         const analysis = await response.json() as StoredAnalysis
