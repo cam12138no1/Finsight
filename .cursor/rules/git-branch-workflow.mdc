@@ -1,0 +1,55 @@
+---
+description: Git 分支工作流强制规则：所有改动必须先经过 test 分支，禁止直接推送到 main/production
+alwaysApply: true
+---
+
+# Git 分支工作流规则
+
+## 核心原则：test first，main never directly
+
+**所有代码改动必须先推送到 `test` 分支（对应 Vercel Preview 环境），验证通过后才能合并到 `main`（对应 Vercel Production 环境）。**
+
+## ✅ 正确流程
+
+```bash
+# 1. 确保在 test 分支
+git checkout test
+
+# 2. 做改动、提交
+git add <files>
+git commit -m "feat: ..."
+
+# 3. 推送到 test（触发 Vercel Preview 部署）
+git push origin test
+
+# 4. 用户确认 Preview 正常后，再合并到 main
+git checkout main
+git merge test --ff-only
+git push origin main
+git checkout test   # 切回 test 继续开发
+```
+
+## ❌ 禁止的操作
+
+```bash
+# 禁止直接在 main 上提交
+git checkout main
+git commit ...      # ❌ 不允许
+
+# 禁止直接推到 main（跳过 test）
+git push origin main   # ❌ 只有 merge 后才能执行
+
+# 禁止强推 main
+git push --force origin main   # ❌ 绝对禁止
+```
+
+## 环境对应关系
+
+| 分支 | Vercel 环境 | 数据库 | 用途 |
+|------|------------|--------|------|
+| `test` | Preview | test-branch DB | 开发验证 |
+| `main` | Production | prod DB | 正式用户 |
+
+## 合并到 main 的前提
+
+用户明确说"测试通过"或"可以合并主线"后，才执行 main 的合并和推送。
