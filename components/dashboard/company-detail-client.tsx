@@ -10,6 +10,8 @@ import { Button } from '@/components/ui/button'
 import { toast } from '@/components/ui/toaster'
 import { getCompanyBySymbol, getCompanyCategoryBySymbol, SEMI_ANNUAL_SYMBOLS } from '@/lib/companies'
 import AnalysisView from './analysis-view-objective'
+import StockPriceDetailChart from './stock-price-detail-chart'
+import type { StockPriceData } from './stock-price-chart'
 
 interface Analysis {
   id: string
@@ -141,6 +143,16 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
 
   // DB-fetched quarters from cron
   const [dbQuarters, setDbQuarters] = useState<DbQuarter[]>([])
+
+  // 14-day stock price data
+  const [stockPriceData, setStockPriceData] = useState<StockPriceData | null>(null)
+
+  useEffect(() => {
+    fetch(`/api/stock-prices?symbols=${encodeURIComponent(symbol)}&days=14`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.prices?.[symbol]) setStockPriceData(data.prices[symbol]) })
+      .catch(() => {})
+  }, [symbol])
 
   // Transcript conclusions state
   interface TranscriptMeta {
@@ -597,6 +609,11 @@ export default function CompanyDetailClient({ symbol }: { symbol: string }) {
                   )}
                 </div>
               </div>
+
+              {/* 14-Day Stock Price Detail Chart */}
+              {!isAnnualView && stockPriceData && stockPriceData.prices?.length >= 2 && (
+                <StockPriceDetailChart data={stockPriceData} />
+              )}
 
               {/* Financial Trend Charts */}
               {!isAnnualView && dbQuarters.length >= 2 && (
