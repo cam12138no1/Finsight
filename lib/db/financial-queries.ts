@@ -489,3 +489,153 @@ export async function resetAllConclusions(): Promise<number> {
   `
   return result.rowCount || 0
 }
+
+// ============================================================
+// Stock price cache queries
+// ============================================================
+
+export async function ensureStockPricesCacheTable(): Promise<void> {
+  await sql`
+    CREATE TABLE IF NOT EXISTS stock_prices_cache (
+      id SERIAL PRIMARY KEY,
+      symbol VARCHAR(20) NOT NULL,
+      currency VARCHAR(10) DEFAULT 'USD',
+      current_price VARCHAR(20),
+      price_change_percent VARCHAR(20),
+      high_14d VARCHAR(20),
+      low_14d VARCHAR(20),
+      prices JSONB NOT NULL,
+      last_updated VARCHAR(50),
+      cached_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE(symbol)
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS idx_stock_prices_symbol ON stock_prices_cache(symbol)`
+}
+
+export interface CachedStockPrice {
+  symbol: string
+  currency: string
+  current_price: string
+  price_change_percent: string
+  high_14d: string
+  low_14d: string
+  prices: any
+  last_updated: string
+  cached_at: Date
+}
+
+/**
+ * Get cached stock prices for multiple symbols (only if cached within TTL)
+ */
+export async function getCachedStockPrices(
+  symbols: string[],
+  ttlMinutes: number = 30
+): Promise<Record<string, CachedStockPrice>> {
+  const result = await sql`
+    SELECT * FROM stock_prices_cache
+    WHERE symbol = ANY(${symbols as any})
+      AND cached_at > NOW() - INTERVAL '1 minute' * ${ttlMinutes}
+  `
+  const map: Record<string, CachedStockPrice> = {}
+  for (const row of result.rows) {
+    map[row.symbol] = row as CachedStockPrice
+  }
+  return map
+}
+
+/**
+ * Upsert stock price cache entry
+ */
+export async function upsertStockPriceCache(data: {
+  symbol: string
+  currency: string
+  current_price: string
+  price_change_percent: string
+  high: string
+  low: string
+  prices: any
+  last_updated: string
+}): Promise<void> {
+  await sql`
+    INSERT INTO stock_prices_cache (
+      symbol, currency, current_price, price_change_percent,
+      high_14d, low_14d, prices, last_updated, cached_at
+    ) VALUES (
+      ${data.symbol}, ${data.currency}, ${data.current_price},
+      ${data.price_change_percent}, ${data.high}, ${data.low},
+      ${JSON.stringify(data.prices)}::jsonb, ${data.last_updated}, NOW()
+    )
+    ON CONFLICT (symbol)
+    DO UPDATE SET
+      currency = EXCLUDED.currency,
+      current_price = EXCLUDED.current_price,
+      price_change_percent = EXCLUDED.price_change_percent,
+      high_14d = EXCLUDED.high_14d,
+      low_14d = EXCLUDED.low_14d,
+      prices = EXCLUDED.prices,
+      last_updated = EXCLUDED.last_updated,
+      cached_at = NOW()
+  `
+}
+
+// ============================================================
+// Guru avatar storage queries
+// ============================================================
+
+export async function ensureGuruAvatarsTable(): Promise<void> {
+  await sql`
+    CREATE TABLE IF NOT EXISTS guru_avatars (
+      id SERIAL PRIMARY KEY,
+      guru_id VARCHAR(50) NOT NULL UNIQUE,
+      name_cn VARCHAR(100),
+      name_en VARCHAR(100),
+      avatar_url VARCHAR(500) NOT NULL,
+      source VARCHAR(100),
+      updated_at TIMESTAMP DEFAULT NOW()
+    )
+  `
+}
+
+export interface GuruAvatar {
+  guru_id: string
+  name_cn: string
+  name_en: string
+  avatar_url: string
+  source: string
+}
+
+/**
+ * Get all guru avatars
+ */
+export async function getGuruAvatars(): Promise<Record<string, GuruAvatar>> {
+  const result = await sql`SELECT * FROM guru_avatars`
+  const map: Record<string, GuruAvatar> = {}
+  for (const row of result.rows) {
+    map[row.guru_id] = row as GuruAvatar
+  }
+  return map
+}
+
+/**
+ * Upsert a guru avatar record
+ */
+export async function upsertGuruAvatar(data: {
+  guru_id: string
+  name_cn: string
+  name_en: string
+  avatar_url: string
+  source: string
+}): Promise<void> {
+  await sql`
+    INSERT INTO guru_avatars (guru_id, name_cn, name_en, avatar_url, source, updated_at)
+    VALUES (${data.guru_id}, ${data.name_cn}, ${data.name_en}, ${data.avatar_url}, ${data.source}, NOW())
+    ON CONFLICT (guru_id)
+    DO UPDATE SET
+      name_cn = EXCLUDED.name_cn,
+      name_en = EXCLUDED.name_en,
+      avatar_url = EXCLUDED.avatar_url,
+      source = EXCLUDED.source,
+      updated_at = NOW()
+  `
+}

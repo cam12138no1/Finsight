@@ -12,6 +12,7 @@ import {
   type Company,
 } from '@/lib/companies'
 import { buildCompanyDataFromAnalyses, type CompanyFinancialData, type QuarterData } from '@/lib/financial-api'
+import { StockPriceChart, StockPriceChartSkeleton, type StockPriceData } from './stock-price-chart'
 
 interface Analysis {
   id: string
@@ -122,6 +123,8 @@ function generateObjectiveSummary(q: QuarterData, companyName: string): string {
 export default function DashboardClient() {
   const [analyses, setAnalyses] = useState<Analysis[]>([])
   const [dbFinancials, setDbFinancials] = useState<FetchedFinancial[]>([])
+  const [stockPrices, setStockPrices] = useState<Record<string, StockPriceData>>({})
+  const [stockPricesLoading, setStockPricesLoading] = useState(true)
   const [isLoading, setIsLoading] = useState(true)
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -150,7 +153,26 @@ export default function DashboardClient() {
     }
   }, [activeCategory])
 
+  // Fetch stock prices for current category companies
+  const loadStockPrices = useCallback(async () => {
+    setStockPricesLoading(true)
+    try {
+      const companies = getCompaniesForCategory(activeCategory)
+      const symbols = companies.map(c => c.symbol).join(',')
+      const res = await fetch(`/api/stock-prices?symbols=${symbols}&days=14`)
+      if (res.ok) {
+        const data = await res.json()
+        if (data.prices) setStockPrices(data.prices)
+      }
+    } catch (error) {
+      console.error('Failed to load stock prices:', error)
+    } finally {
+      setStockPricesLoading(false)
+    }
+  }, [activeCategory])
+
   useEffect(() => { loadDashboardData() }, [loadDashboardData])
+  useEffect(() => { loadStockPrices() }, [loadStockPrices])
 
   const companyDataMap = useMemo(() => {
     const map = new Map<string, CompanyFinancialData>()
@@ -250,7 +272,7 @@ export default function DashboardClient() {
                          hover:border-emerald-300 hover:shadow-soft-md
                          transition-all duration-200 cursor-pointer group"
             >
-              {/* Header */}
+              {/* Header with stock price chart */}
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-2.5">
                   <div className="h-9 w-9 rounded-lg bg-[#F5F5F0] flex items-center justify-center font-semibold text-[#6B7280] text-[11px] flex-shrink-0">
@@ -269,11 +291,28 @@ export default function DashboardClient() {
                     <span className="text-[11px] text-[#9CA3AF]">{company.symbol}</span>
                   </div>
                 </div>
-                {quarters.length === 0 && (
-                  <span className="text-[11px] text-[#9CA3AF] bg-[#F5F5F0] px-2.5 py-1 rounded-full">
-                    暂无数据
-                  </span>
-                )}
+                <div className="hidden sm:block flex-shrink-0">
+                  {stockPrices[company.symbol]?.prices?.length ? (
+                    <StockPriceChart data={stockPrices[company.symbol]} />
+                  ) : stockPricesLoading ? (
+                    <StockPriceChartSkeleton />
+                  ) : quarters.length === 0 ? (
+                    <span className="text-[11px] text-[#9CA3AF] bg-[#F5F5F0] px-2.5 py-1 rounded-full">
+                      暂无数据
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+              {/* Mobile stock price */}
+              <div className="sm:hidden mb-2">
+                {stockPrices[company.symbol]?.prices?.length ? (
+                  <div className="flex items-center justify-between px-1">
+                    <span className="text-[11px] text-[#9CA3AF]">14日股价</span>
+                    <StockPriceChart data={stockPrices[company.symbol]} />
+                  </div>
+                ) : stockPricesLoading ? (
+                  <StockPriceChartSkeleton />
+                ) : null}
               </div>
 
               {/* Summary */}

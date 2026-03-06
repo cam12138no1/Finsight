@@ -33,6 +33,7 @@ export interface GuruProfile {
   gradientFrom: string
   gradientTo: string
   initials: string
+  avatarUrl: string    // 本地头像路径（public/avatars/）
   strategy: string     // 投资风格描述
   newCount: number
   increasedCount: number
@@ -57,6 +58,7 @@ export const GURU_PROFILES: GuruProfile[] = [
     gradientFrom: '#1E40AF',
     gradientTo: '#3B82F6',
     initials: '巴',
+    avatarUrl: '/avatars/buffett.jpg',
     strategy: '价值投资 · 长期持有 · 深度护城河',
     newCount: 2,
     increasedCount: 5,
@@ -95,6 +97,7 @@ export const GURU_PROFILES: GuruProfile[] = [
     gradientFrom: '#7C3AED',
     gradientTo: '#A78BFA',
     initials: '木',
+    avatarUrl: '/avatars/wood.jpg',
     strategy: '颠覆式创新 · 高增长科技 · 5-10年周期',
     newCount: 3,
     increasedCount: 11,
@@ -130,6 +133,7 @@ export const GURU_PROFILES: GuruProfile[] = [
     gradientFrom: '#065F46',
     gradientTo: '#059669',
     initials: '阿',
+    avatarUrl: '/avatars/ackman.jpg',
     strategy: '集中投资 · 激进维权 · 企业催化剂',
     newCount: 1,
     increasedCount: 3,
@@ -162,6 +166,7 @@ export const GURU_PROFILES: GuruProfile[] = [
     gradientFrom: '#0F766E',
     gradientTo: '#0D9488',
     initials: '泰',
+    avatarUrl: '/avatars/tepper.jpg',
     strategy: '宏观驱动 · 价值+成长 · 中国资产布局',
     newCount: 4,
     increasedCount: 9,

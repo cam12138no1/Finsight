@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { getGuruById, ACTION_CONFIG, type HoldingAction, type Holding } from '@/lib/thirteenf-data'
 import {
   ArrowLeft, TrendingUp, TrendingDown, Minus, ExternalLink,
@@ -156,13 +157,25 @@ export default function GuruDetailPage() {
 
           {/* Manager identity */}
           <div className="flex items-start gap-4 py-5">
-            {/* Avatar */}
-            <div
-              className="w-16 h-16 rounded-2xl flex items-center justify-center text-white text-2xl font-bold flex-shrink-0 shadow-soft"
-              style={{ background: `linear-gradient(135deg, ${guru.gradientFrom}, ${guru.gradientTo})` }}
-            >
-              {guru.initials}
-            </div>
+            {/* Avatar - real photo */}
+            {guru.avatarUrl ? (
+              <div className="w-16 h-16 rounded-2xl overflow-hidden flex-shrink-0 shadow-soft border border-[#E8E8E3]">
+                <Image
+                  src={guru.avatarUrl}
+                  alt={guru.nameEn}
+                  width={64}
+                  height={64}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            ) : (
+              <div
+                className="w-16 h-16 rounded-2xl flex items-center justify-center text-white text-2xl font-bold flex-shrink-0 shadow-soft"
+                style={{ background: `linear-gradient(135deg, ${guru.gradientFrom}, ${guru.gradientTo})` }}
+              >
+                {guru.initials}
+              </div>
+            )}
             <div className="flex-1 min-w-0">
               <h1 className="text-2xl font-bold text-[#1F2937]">{guru.nameCn}</h1>
               <p className="text-[13px] text-[#6B7280] mt-0.5">{guru.nameEn} · {guru.title}</p>

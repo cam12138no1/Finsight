@@ -1,16 +1,20 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { GURU_PROFILES, type GuruProfile } from '@/lib/thirteenf-data'
 import { TrendingUp, TrendingDown, Users, FileText, Calendar, ChevronRight } from 'lucide-react'
 
-// SVG 圆环图：仿截图风格，中间放大师头像/首字母
+// SVG 圆环图：仿截图风格，中间放大师真实头像
 function DonutChart({ guru }: { guru: GuruProfile }) {
+  const [imgError, setImgError] = useState(false)
   const size = 100
   const strokeWidth = 13
   const center = size / 2
   const radius = (size - strokeWidth) / 2
   const circumference = 2 * Math.PI * radius
+  const innerRadius = radius - strokeWidth / 2 - 2
 
   const top5 = guru.holdings.slice(0, 5)
   const top5Total = top5.reduce((sum, h) => sum + h.weight, 0)
@@ -20,7 +24,6 @@ function DonutChart({ guru }: { guru: GuruProfile }) {
     ...(otherWeight > 0.5 ? [{ weight: otherWeight, color: '#E5E7EB' }] : []),
   ]
 
-  // Normalize to 100%
   const totalWeight = segments.reduce((sum, s) => sum + s.weight, 0)
 
   let cumulativeDash = 0
@@ -48,17 +51,30 @@ function DonutChart({ guru }: { guru: GuruProfile }) {
         <circle cx={center} cy={center} r={radius} fill="none" stroke="#F0F0EB" strokeWidth={strokeWidth} />
         {circles}
       </svg>
-      {/* Center avatar */}
+      {/* Center avatar - real photo */}
       <div
         className="absolute inset-0 flex items-center justify-center"
         style={{ margin: strokeWidth + 2 }}
       >
-        <div
-          className="w-full h-full rounded-full flex items-center justify-center text-white font-bold text-xl"
-          style={{ background: `linear-gradient(135deg, ${guru.gradientFrom}, ${guru.gradientTo})` }}
-        >
-          {guru.initials}
-        </div>
+        {guru.avatarUrl && !imgError ? (
+          <div className="w-full h-full rounded-full overflow-hidden border-2 border-white shadow-sm">
+            <Image
+              src={guru.avatarUrl}
+              alt={guru.nameEn}
+              width={70}
+              height={70}
+              className="w-full h-full object-cover"
+              onError={() => setImgError(true)}
+            />
+          </div>
+        ) : (
+          <div
+            className="w-full h-full rounded-full flex items-center justify-center text-white font-bold text-xl"
+            style={{ background: `linear-gradient(135deg, ${guru.gradientFrom}, ${guru.gradientTo})` }}
+          >
+            {guru.initials}
+          </div>
+        )}
       </div>
     </div>
   )
