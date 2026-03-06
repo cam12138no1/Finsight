@@ -1,12 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { useParams, useRouter, redirect } from 'next/navigation'
-
-// 13-F 仅在 preview / development 可访问，production 环境重定向到首页
-if (process.env.NEXT_PUBLIC_VERCEL_ENV === 'production') {
-  redirect('/dashboard')
-}
+import { useParams, useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { getGuruById, ACTION_CONFIG, type HoldingAction, type Holding } from '@/lib/thirteenf-data'
 import {
