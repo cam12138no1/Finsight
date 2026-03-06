@@ -1,9 +1,15 @@
 'use client'
 
 import { useState } from 'react'
+import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import { GURU_PROFILES, type GuruProfile } from '@/lib/thirteenf-data'
+
+// 13-F 仅在 preview / development 可访问，production 环境重定向到首页
+if (process.env.NEXT_PUBLIC_VERCEL_ENV === 'production') {
+  redirect('/dashboard')
+}
 import { TrendingUp, TrendingDown, Users, FileText, Calendar, ChevronRight } from 'lucide-react'
 
 // SVG 圆环图：仿截图风格，中间放大师真实头像
